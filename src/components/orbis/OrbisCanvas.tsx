@@ -74,10 +74,18 @@ export function OrbisCanvas() {
       if (dt > 0) {
         circlesRef.current = step(circlesRef.current, configRef.current, dt, sizeRef.current.w, sizeRef.current.h);
       }
-      render(ctx, circlesRef.current, selectedRef.current, sizeRef.current.w, sizeRef.current.h, now, {
-        showVectors: false,
-        showTrails: showTrailsRef.current,
-      }, configRef.current.trailOpacity);
+      render(
+        ctx,
+        circlesRef.current,
+        selectedRef.current,
+        sizeRef.current.w,
+        sizeRef.current.h,
+        now,
+        { showVectors: false, showTrails: showTrailsRef.current },
+        configRef.current.trailOpacity,
+        configRef.current.glowSoftness,
+        configRef.current.tailFadeRate,
+      );
 
       // fps update ~4Hz
       fpsAcc += realDt; fpsFrames++; fpsTimer += realDt;

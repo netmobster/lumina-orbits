@@ -27,6 +27,8 @@ export type SimConfig = {
   ribbonDrift: number;
   trailLength: number;
   trailOpacity: number;
+  glowSoftness: number;
+  tailFadeRate: number;
 };
 
 export const DEFAULT_CONFIG: SimConfig = {
@@ -39,6 +41,8 @@ export const DEFAULT_CONFIG: SimConfig = {
   ribbonDrift: 1.0,
   trailLength: 550,
   trailOpacity: 100,
+  glowSoftness: 3.2,
+  tailFadeRate: 1.5,
 };
 
 export const radiusOf = (mass: number) => Math.sqrt(mass) * 4;

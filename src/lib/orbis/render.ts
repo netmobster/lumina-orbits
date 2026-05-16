@@ -9,6 +9,8 @@ export function render(
   now: number,
   opts: { showVectors?: boolean; showTrails?: boolean } = {},
   trailOpacity: number = 100,
+  glowSoftness: number = 3.2,
+  tailFadeRate: number = 1.5,
 ) {
   // transparent canvas — background aura shows through
   ctx.globalCompositeOperation = "source-over";
@@ -35,10 +37,11 @@ export function render(
 
       for (let i = start + 1; i < c.trail.length; i++) {
         const local = (i - start) / visible; // 0 (tail) → 1 (head)
-        const a = headAlpha * local;
+        const fade = Math.pow(local, tailFadeRate);
+        const a = headAlpha * fade;
         if (a < 0.005) continue;
         const coreW = Math.max(0.6, coreMaxWidth * local);
-        const glowW = coreW * 3.2;
+        const glowW = coreW * glowSoftness;
         const x0 = c.trail[i - 1].x, y0 = c.trail[i - 1].y;
         const x1 = c.trail[i].x,     y1 = c.trail[i].y;
         // outer glow halo — wider, ~25% of core alpha
