@@ -1,34 +1,47 @@
-# Why the background is invisible
+# Background polish — caustics, ribbon drift, brighter aura
 
-`OrbisCanvas` paints an opaque `#080d12` fill every frame in `render.ts` (line 14–15). The canvas sits at `z-10` over `BackgroundAura` (`z-0`), so the ribbons render correctly but are completely covered. Fix the canvas, then layer on the new features.
+## 1. `BackgroundAura.tsx` — add caustics, brighter ribbons, drift control
 
-## Changes
+**Two new ribbons** (appended to existing 6):
+- Ribbon 7: bright mint `#7be3c4`, 100vw × 18vh, top 35%, left 10%, depth 22
+- Ribbon 8: pale seafoam `#a8e8d4`, 95vw × 14vh, top 60%, left 50%, depth 16
 
-### 1. `src/lib/orbis/render.ts` — let the aura show through
-- Replace the opaque base fill (`ctx.fillStyle = "#080d12"; ctx.fillRect(...)`) with `ctx.clearRect(0, 0, w, h)` so the canvas is transparent.
-- Keep the page background dark via `--orbis-bg` on the `BackgroundAura` wrapper (already set) so there's no flash.
+Each gets its own keyframe (`orbis-drift-7`, `orbis-drift-8`) with the same translate/rotate/scaleX pattern as the others.
 
-### 2. `src/components/orbis/BackgroundAura.tsx` — pointer-events, parallax, intensity
-- Add `pointerEvents: "none"` on the root wrapper, the vignette div, and the SVG noise overlay so nothing intercepts clicks (the wrapper already has `pointer-events-none` via Tailwind, but make it explicit on children too as a safety net).
-- Accept new props: `intensity: number` (0–1, default ~0.5) and `mouse: { x: number; y: number }` (normalized -0.5…0.5).
-  - `intensity` scales each ribbon's `opacity` (base 0.06 → range 0.02 to 0.12) and `blur` radius (40px to 90px).
-  - Each ribbon gets a per-ribbon parallax depth (e.g. 8px, 14px, 20px, 26px, 18px, 12px). The component composes the CSS keyframe animation with an inline `translate(...)` offset by wrapping each ribbon in an outer "parallax" div that gets `transform: translate3d(mouse.x * depth, mouse.y * depth, 0)` with `transition: transform 600ms ease-out`. The inner div keeps the existing `@keyframes orbis-drift-N` animation untouched.
-- Mouse tracking lives in this component (single `pointermove` listener on `window`, throttled via `requestAnimationFrame`), so `OrbisCanvas` stays untouched.
+**Intensity remap (1–10, default 5):**
+- `baseOpacity = 0.025 * intensity` → 0.025 (at 1) to 0.25 (at 10), `~0.125` at default 5
+- `blur = 40 + intensity * 6` → 46–100px
 
-### 3. `src/lib/orbis/types.ts` — extend `SimConfig`
-- Add `auraIntensity: number` to `SimConfig` (default `0.5`, range 0–1). Keep it in `SimConfig` so it lives alongside the other tunables and persists with presets if we ever want it to.
-- Leave presets unchanged (they don't need to override aura intensity).
+**Ribbon drift control:**
+- New prop `driftSpeed: number` (1 = baseline). Each ribbon's `animation-duration` is `baseDuration / driftSpeed`, applied inline via the `animationDuration` style (the `@keyframes` definitions stay static; only durations scale).
+- Range 0–5, default 1. At 0 the animation is paused (`animationPlayState: "paused"`).
 
-### 4. `src/components/orbis/DebugPanel.tsx` — new slider
-- Add a `Slider` row "Aura intensity" with `min={0} max={1} step={0.01}`, formatted `v.toFixed(2)`, wired to `config.auraIntensity` via the existing `onChange` handler.
+**Caustics overlay:**
+- New `<svg>` layer between ribbons and vignette, full-viewport, `mixBlendMode: "screen"`, `pointerEvents: "none"`.
+- Uses `<feTurbulence type="fractalNoise" baseFrequency="0.012 0.022" numOctaves="2">` feeding a `<feDisplacementMap>` over a faint teal-to-transparent radial gradient rect, producing organic flowing light patches.
+- Animate `baseFrequency` via SMIL `<animate>` between `"0.010 0.018"` and `"0.016 0.026"` over ~14s for slow shimmer (SMIL works for SVG filter primitives).
+- Opacity tied to intensity: `0.04 + intensity * 0.025` (so 0.065 at 1, ~0.29 at 10, ~0.165 at default 5).
 
-### 5. `src/components/orbis/OrbisCanvas.tsx` — pass intensity through
-- Pass `intensity={configState.auraIntensity}` to `<BackgroundAura />`.
-- No mouse handling here — the aura owns it.
+## 2. `types.ts` — extend `SimConfig`
+
+```ts
+auraIntensity: number;  // 1–10, default 5
+ribbonDrift: number;    // 0–5, default 1
+```
+
+Update `DEFAULT_CONFIG` accordingly. Presets untouched.
+
+## 3. `DebugPanel.tsx` — sliders
+
+- Update "Aura intensity" slider to `min={1} max={10} step={0.1}`, format `v.toFixed(1)`.
+- Add new slider "Ribbon drift" `min={0} max={5} step={0.1}`, format `v.toFixed(1) + "×"`.
+
+## 4. `OrbisCanvas.tsx` — pass new prop
+
+Pass `intensity={configState.auraIntensity}` and `driftSpeed={configState.ribbonDrift}` to `<BackgroundAura />`.
 
 ## Technical notes
 
-- Canvas transparency: `clearRect` is sufficient because the body / aura wrapper already paints `--orbis-bg` (`#080d12`). The trails use `globalCompositeOperation = "lighter"`, which works correctly over a transparent canvas — additive blending is on the canvas pixels, not the page underneath.
-- Parallax depth values are small (≤26px) and `ease-out` smoothed so the effect reads as "deep water" not "panning."
-- The intensity slider remaps both opacity and blur because reducing only opacity makes ribbons feel sharp/digital; reducing blur in tandem keeps the soft bioluminescent feel at all levels.
-- All ribbon overlays remain `mix-blend-mode: screen`; the vignette stays normal blend.
+- Driving `animation-duration` per-element via inline `style` is reactive — React rewriting the style attribute restarts the animation seamlessly because the keyframes name is unchanged.
+- `mixBlendMode: "screen"` on the caustics + ribbons stays additive over the dark `--orbis-bg`, so brightening intensity actually shows up. Vignette stays normal-blend on top so edges still feel deep.
+- SMIL animation of `baseFrequency` is widely supported in Chromium/Safari/Firefox and avoids needing a JS animation loop for the caustics shimmer.

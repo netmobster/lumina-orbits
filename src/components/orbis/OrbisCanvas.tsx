@@ -200,7 +200,7 @@ export function OrbisCanvas() {
 
   return (
     <>
-      <BackgroundAura intensity={configState.auraIntensity} />
+      <BackgroundAura intensity={configState.auraIntensity} driftSpeed={configState.ribbonDrift} />
       <canvas ref={canvasRef} className="fixed inset-0 z-10 block cursor-crosshair" />
       <LoadingOrb visible={loading} />
       <DebugPanel

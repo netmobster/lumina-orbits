@@ -24,6 +24,7 @@ export type SimConfig = {
   spawnRate: number;
   maxForce: number;
   auraIntensity: number;
+  ribbonDrift: number;
 };
 
 export const DEFAULT_CONFIG: SimConfig = {
@@ -32,7 +33,8 @@ export const DEFAULT_CONFIG: SimConfig = {
   mergeThreshold: 30,
   spawnRate: 15,
   maxForce: 120,
-  auraIntensity: 3.0,
+  auraIntensity: 5.0,
+  ribbonDrift: 1.0,
 };
 
 export const radiusOf = (mass: number) => Math.sqrt(mass) * 4;
