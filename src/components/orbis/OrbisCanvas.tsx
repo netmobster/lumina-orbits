@@ -177,9 +177,13 @@ export function OrbisCanvas() {
   };
 
   const handlePreset = (p: Preset) => {
-    const patch = PRESETS[p];
+    const { speed: presetSpeed, ...patch } = PRESETS[p];
     configRef.current = { ...configRef.current, ...patch };
     setConfigState((s) => ({ ...s, ...patch }));
+    if (presetSpeed != null) {
+      speedRef.current = presetSpeed;
+      setSpeed(presetSpeed);
+    }
     setActivePreset(p);
   };
 
