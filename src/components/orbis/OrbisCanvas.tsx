@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { DebugPanel } from "./DebugPanel";
 import { findCircleAt, seedCircles, spawnFromEdge, splitCircle, step, mergeCircles } from "@/lib/orbis/sim";
 import { render } from "@/lib/orbis/render";
-import { DEFAULT_CONFIG, type Circle, type SimConfig } from "@/lib/orbis/types";
+import { DEFAULT_CONFIG, PRESETS, type Circle, type Preset, type SimConfig } from "@/lib/orbis/types";
 
 export function OrbisCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -11,10 +11,16 @@ export function OrbisCanvas() {
   const selectedRef = useRef<number | null>(null);
   const sizeRef = useRef({ w: 0, h: 0 });
   const spawnAccRef = useRef(0);
+  const speedRef = useRef(1);
+  const showVectorsRef = useRef(false);
+  const showTrailsRef = useRef(true);
 
   const [configState, setConfigState] = useState<SimConfig>({ ...DEFAULT_CONFIG });
   const [fps, setFps] = useState(0);
   const [count, setCount] = useState(0);
+  const [speed, setSpeed] = useState(1);
+  const [showVectors, setShowVectors] = useState(false);
+  const [showTrails, setShowTrails] = useState(true);
   const [, force] = useState(0);
 
   // setup
@@ -48,11 +54,12 @@ export function OrbisCanvas() {
     let fpsAcc = 0, fpsFrames = 0, fpsTimer = 0;
 
     const loop = (now: number) => {
-      const dt = Math.min((now - last) / 1000, 1 / 30);
+      const realDt = Math.min((now - last) / 1000, 1 / 30);
       last = now;
+      const dt = realDt * speedRef.current;
 
       // spawn
-      spawnAccRef.current += dt;
+      spawnAccRef.current += realDt;
       if (spawnAccRef.current >= configRef.current.spawnRate) {
         spawnAccRef.current = 0;
         circlesRef.current = circlesRef.current.concat(
@@ -60,11 +67,16 @@ export function OrbisCanvas() {
         );
       }
 
-      circlesRef.current = step(circlesRef.current, configRef.current, dt, sizeRef.current.w, sizeRef.current.h);
-      render(ctx, circlesRef.current, selectedRef.current, sizeRef.current.w, sizeRef.current.h, now);
+      if (dt > 0) {
+        circlesRef.current = step(circlesRef.current, configRef.current, dt, sizeRef.current.w, sizeRef.current.h);
+      }
+      render(ctx, circlesRef.current, selectedRef.current, sizeRef.current.w, sizeRef.current.h, now, {
+        showVectors: showVectorsRef.current,
+        showTrails: showTrailsRef.current,
+      });
 
       // fps update ~4Hz
-      fpsAcc += dt; fpsFrames++; fpsTimer += dt;
+      fpsAcc += realDt; fpsFrames++; fpsTimer += realDt;
       if (fpsTimer >= 0.25) {
         setFps(Math.round(fpsFrames / fpsAcc));
         setCount(circlesRef.current.length);
@@ -148,6 +160,27 @@ export function OrbisCanvas() {
     spawnAccRef.current = 0;
   };
 
+  const handlePreset = (p: Preset) => {
+    const patch = PRESETS[p];
+    configRef.current = { ...configRef.current, ...patch };
+    setConfigState((s) => ({ ...s, ...patch }));
+  };
+
+  const handleSpeed = (s: number) => {
+    speedRef.current = s;
+    setSpeed(s);
+  };
+
+  const handleToggleVectors = (v: boolean) => {
+    showVectorsRef.current = v;
+    setShowVectors(v);
+  };
+
+  const handleToggleTrails = (v: boolean) => {
+    showTrailsRef.current = v;
+    setShowTrails(v);
+  };
+
   return (
     <>
       <canvas ref={canvasRef} className="fixed inset-0 z-10 block cursor-crosshair" />
@@ -157,6 +190,13 @@ export function OrbisCanvas() {
         fps={fps}
         count={count}
         onReset={handleReset}
+        onPreset={handlePreset}
+        speed={speed}
+        onSpeed={handleSpeed}
+        showVectors={showVectors}
+        onToggleVectors={handleToggleVectors}
+        showTrails={showTrails}
+        onToggleTrails={handleToggleTrails}
       />
     </>
   );

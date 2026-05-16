@@ -7,11 +7,31 @@ export function render(
   w: number,
   h: number,
   now: number,
+  opts: { showVectors?: boolean; showTrails?: boolean } = {},
 ) {
   // base wash
   ctx.globalCompositeOperation = "source-over";
   ctx.fillStyle = "#080d12";
   ctx.fillRect(0, 0, w, h);
+
+  // trails (under everything)
+  if (opts.showTrails !== false) {
+    ctx.globalCompositeOperation = "lighter";
+    for (const c of circles) {
+      if (c.trail.length < 2) continue;
+      ctx.lineCap = "round";
+      for (let i = 1; i < c.trail.length; i++) {
+        const t = i / c.trail.length;
+        const a = 0.04 + t * 0.18;
+        ctx.strokeStyle = hexA(c.color.core, a);
+        ctx.lineWidth = Math.max(0.5, radiusOf(c.mass) * 0.35 * t);
+        ctx.beginPath();
+        ctx.moveTo(c.trail[i - 1].x, c.trail[i - 1].y);
+        ctx.lineTo(c.trail[i].x, c.trail[i].y);
+        ctx.stroke();
+      }
+    }
+  }
 
   // sticky arcs (under bodies)
   ctx.globalCompositeOperation = "lighter";
@@ -74,6 +94,39 @@ export function render(
       ctx.beginPath();
       ctx.arc(c.x, c.y, r + 4, 0, Math.PI * 2);
       ctx.stroke();
+    }
+  }
+
+  // velocity vectors overlay
+  if (opts.showVectors) {
+    ctx.globalCompositeOperation = "source-over";
+    ctx.strokeStyle = "rgba(120,255,220,0.85)";
+    ctx.fillStyle = "rgba(120,255,220,0.85)";
+    ctx.lineWidth = 1;
+    for (const c of circles) {
+      const r = radiusOf(c.mass);
+      const scale = 0.6;
+      const ex = c.x + c.vx * scale;
+      const ey = c.y + c.vy * scale;
+      ctx.beginPath();
+      ctx.moveTo(c.x, c.y);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      const len = Math.hypot(ex - c.x, ey - c.y);
+      if (len > 4) {
+        const ang = Math.atan2(ey - c.y, ex - c.x);
+        const ah = 4;
+        ctx.beginPath();
+        ctx.moveTo(ex, ey);
+        ctx.lineTo(ex - Math.cos(ang - 0.4) * ah, ey - Math.sin(ang - 0.4) * ah);
+        ctx.lineTo(ex - Math.cos(ang + 0.4) * ah, ey - Math.sin(ang + 0.4) * ah);
+        ctx.closePath();
+        ctx.fill();
+      }
+      // small center dot
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, Math.min(2, r * 0.2), 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 }
