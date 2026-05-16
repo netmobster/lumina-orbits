@@ -201,7 +201,7 @@ export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h
     : circles.filter((c) => !mergedIds.has(c.id)).concat(newCircles);
 
   // random auto-splits (splits per second)
-  if (cfg.splitRate > 0 && result.length < 80) {
+  if (cfg.xlEnabled && cfg.splitRate > 0 && result.length < 80) {
     const p = cfg.splitRate * dt;
     if (Math.random() < p) {
       const candidates = result.filter((c) => c.mass > 6);
