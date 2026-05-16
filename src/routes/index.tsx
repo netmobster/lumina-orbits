@@ -17,7 +17,6 @@ export const Route = createFileRoute("/")({
 function Index() {
   return (
     <main className="relative h-screen w-screen overflow-hidden">
-      <BackgroundAura />
       <OrbisCanvas />
       <h1 className="sr-only">ORBIS — A Living Physics System</h1>
     </main>

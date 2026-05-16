@@ -120,6 +120,8 @@ export function DebugPanel({
             onChange={(v) => onChange({ mergeThreshold: v })} format={(v) => v.toFixed(0)} />
           <Slider label="Spawn rate (s)" min={3} max={30} step={1} value={config.spawnRate}
             onChange={(v) => onChange({ spawnRate: v })} format={(v) => v.toFixed(0)} />
+          <Slider label="Aura intensity" min={0} max={1} step={0.01} value={config.auraIntensity}
+            onChange={(v) => onChange({ auraIntensity: v })} format={(v) => v.toFixed(2)} />
 
           {/* Toggles */}
           <div className="space-y-1.5">

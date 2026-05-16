@@ -9,10 +9,9 @@ export function render(
   now: number,
   opts: { showVectors?: boolean; showTrails?: boolean } = {},
 ) {
-  // base wash
+  // transparent canvas — background aura shows through
   ctx.globalCompositeOperation = "source-over";
-  ctx.fillStyle = "#080d12";
-  ctx.fillRect(0, 0, w, h);
+  ctx.clearRect(0, 0, w, h);
 
   // trails (under everything)
   if (opts.showTrails !== false) {
