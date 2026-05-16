@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { DebugPanel } from "./DebugPanel";
 import { BackgroundAura } from "./BackgroundAura";
+import { LoadingOrb } from "./LoadingOrb";
 import { findCircleAt, seedCircles, spawnFromEdge, splitCircle, step, mergeCircles } from "@/lib/orbis/sim";
 import { render } from "@/lib/orbis/render";
 import { DEFAULT_CONFIG, PRESETS, type Circle, type Preset, type SimConfig } from "@/lib/orbis/types";
