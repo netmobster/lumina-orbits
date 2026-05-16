@@ -44,3 +44,8 @@ function hexToRgb(hex: string) {
     b: parseInt(h.slice(4, 6), 16),
   };
 }
+
+export function rgbPrefixOf(hex: string): string {
+  const { r, g, b } = hexToRgb(hex);
+  return `${r},${g},${b}`;
+}

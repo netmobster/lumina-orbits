@@ -1,4 +1,4 @@
-import { blendColor, randomPaletteColor } from "./palette";
+import { blendColor, randomPaletteColor, rgbPrefixOf } from "./palette";
 import { Circle, SimConfig, radiusOf } from "./types";
 
 let _id = 1;
@@ -16,7 +16,10 @@ export function makeCircle(opts: Partial<Circle> & { mass: number; x: number; y:
     color: { core: color.core, shadow: color.shadow },
     flashUntil: opts.flashUntil ?? 0,
     stickyWith: new Set<number>(),
-    trail: [],
+    px: opts.x,
+    py: opts.y,
+    radius: radiusOf(opts.mass),
+    rgbPrefix: rgbPrefixOf(color.core),
   };
 }
 
@@ -70,7 +73,6 @@ export function spawnFromEdge(w: number, h: number): Circle {
 }
 
 const MIN_DIST = 4;
-const TRAIL_MAX_CAP = 2000;
 
 export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h: number): Circle[] {
   const n = circles.length;
@@ -117,12 +119,11 @@ export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h
       c.vx = (c.vx / spd) * maxSpeed;
       c.vy = (c.vy / spd) * maxSpeed;
     }
+    c.px = c.x;
+    c.py = c.y;
     c.x += c.vx * dt;
     c.y += c.vy * dt;
-    c.trail.push({ x: c.x, y: c.y });
-    const cap = Math.min(TRAIL_MAX_CAP, Math.max(2, cfg.trailLength | 0));
-    while (c.trail.length > cap) c.trail.shift();
-    const r = radiusOf(c.mass);
+    const r = c.radius;
     if (c.x < r) { c.x = r; c.vx = -c.vx * 0.7; }
     else if (c.x > w - r) { c.x = w - r; c.vx = -c.vx * 0.7; }
     if (c.y < r) { c.y = r; c.vy = -c.vy * 0.7; }
@@ -234,7 +235,10 @@ export function mergeCircles(a: Circle, b: Circle): Circle {
     color,
     flashUntil: performance.now() + 220,
     stickyWith: new Set<number>(),
-    trail: [],
+    px: x,
+    py: y,
+    radius: radiusOf(newMass),
+    rgbPrefix: rgbPrefixOf(color.core),
   };
 }
 
