@@ -8,6 +8,7 @@ export function render(
   h: number,
   now: number,
   opts: { showVectors?: boolean; showTrails?: boolean } = {},
+  trailOpacity: number = 100,
 ) {
   // transparent canvas — background aura shows through
   ctx.globalCompositeOperation = "source-over";
@@ -21,7 +22,7 @@ export function render(
       ctx.lineCap = "round";
       for (let i = 1; i < c.trail.length; i++) {
         const t = i / c.trail.length;
-        const a = Math.min(1, (0.04 + t * 0.18) * 10);
+        const a = Math.min(1, (0.04 + t * 0.18) * trailOpacity);
         ctx.strokeStyle = hexA(c.color.core, a);
         ctx.lineWidth = Math.max(0.8, radiusOf(c.mass) * 0.5 * t);
         ctx.beginPath();

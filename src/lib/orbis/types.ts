@@ -25,6 +25,8 @@ export type SimConfig = {
   maxForce: number;
   auraIntensity: number;
   ribbonDrift: number;
+  trailLength: number;
+  trailOpacity: number;
 };
 
 export const DEFAULT_CONFIG: SimConfig = {
@@ -35,6 +37,8 @@ export const DEFAULT_CONFIG: SimConfig = {
   maxForce: 120,
   auraIntensity: 5.0,
   ribbonDrift: 1.0,
+  trailLength: 550,
+  trailOpacity: 100,
 };
 
 export const radiusOf = (mass: number) => Math.sqrt(mass) * 4;
