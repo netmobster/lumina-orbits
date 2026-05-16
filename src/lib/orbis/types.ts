@@ -24,9 +24,9 @@ export type SimConfig = {
 };
 
 export const DEFAULT_CONFIG: SimConfig = {
-  G: 0.05,
+  G: 0.15,
   damping: 0.999,
-  mergeThreshold: 60,
+  mergeThreshold: 30,
   spawnRate: 15,
 };
 
