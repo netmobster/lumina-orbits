@@ -99,32 +99,76 @@ export function render(
   // velocity vectors overlay
   if (opts.showVectors) {
     ctx.globalCompositeOperation = "source-over";
-    ctx.strokeStyle = "rgba(120,255,220,0.85)";
-    ctx.fillStyle = "rgba(120,255,220,0.85)";
-    ctx.lineWidth = 1;
     for (const c of circles) {
       const r = radiusOf(c.mass);
-      const scale = 0.6;
-      const ex = c.x + c.vx * scale;
-      const ey = c.y + c.vy * scale;
+      const speed = Math.hypot(c.vx, c.vy);
+
+      if (speed < 0.5) {
+        ctx.fillStyle = "rgba(120,255,220,0.55)";
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, Math.min(2.5, r * 0.22), 0, Math.PI * 2);
+        ctx.fill();
+        continue;
+      }
+
+      const nx = c.vx / speed;
+      const ny = c.vy / speed;
+      const minLen = r + 14;
+      const rawLen = speed * 1.6;
+      const len = Math.min(220, Math.max(minLen, rawLen));
+
+      const sx = c.x + nx * r;
+      const sy = c.y + ny * r;
+      const ex = c.x + nx * len;
+      const ey = c.y + ny * len;
+
+      const k = Math.min(1, speed / 60);
+      const alpha = 0.55 + k * 0.45;
+      const lineWidth = 1.2 + k * 1.8;
+      const ah = 5 + k * 5;
+      const ang = Math.atan2(ey - sy, ex - sx);
+
+      // dark backing stroke for legibility
+      ctx.strokeStyle = "rgba(10,30,28,0.55)";
+      ctx.lineWidth = lineWidth + 2;
+      ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.moveTo(c.x, c.y);
+      ctx.moveTo(sx, sy);
       ctx.lineTo(ex, ey);
       ctx.stroke();
-      const len = Math.hypot(ex - c.x, ey - c.y);
-      if (len > 4) {
-        const ang = Math.atan2(ey - c.y, ex - c.x);
-        const ah = 4;
-        ctx.beginPath();
-        ctx.moveTo(ex, ey);
-        ctx.lineTo(ex - Math.cos(ang - 0.4) * ah, ey - Math.sin(ang - 0.4) * ah);
-        ctx.lineTo(ex - Math.cos(ang + 0.4) * ah, ey - Math.sin(ang + 0.4) * ah);
-        ctx.closePath();
-        ctx.fill();
-      }
-      // small center dot
+
+      // bright teal stroke
+      ctx.strokeStyle = `rgba(120,255,220,${alpha})`;
+      ctx.lineWidth = lineWidth;
       ctx.beginPath();
-      ctx.arc(c.x, c.y, Math.min(2, r * 0.2), 0, Math.PI * 2);
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+
+      // arrowhead (backed + bright)
+      const p1x = ex - Math.cos(ang - 0.45) * ah;
+      const p1y = ey - Math.sin(ang - 0.45) * ah;
+      const p2x = ex - Math.cos(ang + 0.45) * ah;
+      const p2y = ey - Math.sin(ang + 0.45) * ah;
+      ctx.fillStyle = "rgba(10,30,28,0.55)";
+      ctx.beginPath();
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(p1x, p1y);
+      ctx.lineTo(p2x, p2y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = `rgba(120,255,220,${alpha})`;
+      ctx.beginPath();
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(p1x, p1y);
+      ctx.lineTo(p2x, p2y);
+      ctx.closePath();
+      ctx.fill();
+
+      // center dot
+      ctx.fillStyle = `rgba(120,255,220,${alpha})`;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, Math.min(2.5, r * 0.22), 0, Math.PI * 2);
       ctx.fill();
     }
   }
