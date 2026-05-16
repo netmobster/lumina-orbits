@@ -60,8 +60,8 @@ export function DebugPanel({
           {/* Presets */}
           <div className="space-y-1.5">
             <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--orbis-text-muted)" }}>Preset</span>
-            <div className="grid grid-cols-3 gap-1.5">
-              {(["drift", "orbit", "spiral"] as Preset[]).map((p) => {
+            <div className="grid grid-cols-4 gap-1.5">
+              {(["drift", "orbit", "spiral", "life"] as Preset[]).map((p) => {
                 const active = activePreset === p;
                 return (
                   <button
