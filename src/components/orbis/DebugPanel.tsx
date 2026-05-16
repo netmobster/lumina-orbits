@@ -83,7 +83,7 @@ export function DebugPanel({
           {/* Speed + pause */}
           <div className="space-y-1.5">
             <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--orbis-text-muted)" }}>Time</span>
-            <div className="grid grid-cols-5 gap-1.5">
+            <div className="grid grid-cols-6 gap-1.5">
               <button
                 onClick={() => onSpeed(speed === 0 ? 1 : 0)}
                 className="flex items-center justify-center rounded-xl border px-2 py-1.5 text-[12px] transition-colors hover:bg-white/5"
@@ -94,7 +94,7 @@ export function DebugPanel({
               >
                 {speed === 0 ? <Play size={12} /> : <Pause size={12} />}
               </button>
-              {[0.5, 1, 2, 5].map((s) => (
+              {[0.5, 1, 2, 5, 10].map((s) => (
                 <button
                   key={s}
                   onClick={() => onSpeed(s)}
