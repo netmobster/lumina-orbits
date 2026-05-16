@@ -6,7 +6,7 @@ import { LoadingOrb } from "./LoadingOrb";
 import { StatsHUD } from "./StatsHUD";
 import {
   findCircleAt, seedCircles, spawnFromEdge, splitCircle, step, mergeCircles,
-  fastForward, triggerSupernova, spawnComet, spawnAsteroidBurst,
+  triggerSupernova, spawnComet, spawnAsteroidBurst,
 } from "@/lib/orbis/sim";
 import { render } from "@/lib/orbis/render";
 import { DEFAULT_CONFIG, PRESETS, type Circle, type Preset, type SimConfig } from "@/lib/orbis/types";
@@ -60,6 +60,7 @@ export function OrbisCanvas() {
   const [elapsedSec, setElapsedSec] = useState(0);
   const [totalMass, setTotalMass] = useState(0);
   const [fastForwarding, setFastForwarding] = useState(false);
+  const [ffProgress, setFfProgress] = useState(0);
   const [, force] = useState(0);
 
   // setup
@@ -370,18 +371,40 @@ export function OrbisCanvas() {
   const handleFastForward = () => {
     if (fastForwarding) return;
     setFastForwarding(true);
-    // let the overlay paint before we block the thread
-    window.setTimeout(() => {
-      const { w, h } = sizeRef.current;
-      circlesRef.current = fastForward(circlesRef.current, configRef.current, 3600, w, h);
-      simTimeRef.current += 3600;
+    setFfProgress(0);
+    const { w, h } = sizeRef.current;
+    const CHUNKS = 60;
+    const ITERS_PER_CHUNK = 60;
+    const DT = 1.0;
+    let chunk = 0;
+    let spawnAcc = spawnAccRef.current;
+    const runChunk = () => {
+      let cur = circlesRef.current;
+      for (let i = 0; i < ITERS_PER_CHUNK; i++) {
+        cur = step(cur, configRef.current, DT, w, h);
+        spawnAcc += DT;
+        if (spawnAcc >= configRef.current.spawnRate) {
+          spawnAcc = 0;
+          cur = cur.concat(spawnFromEdge(w, h));
+        }
+      }
+      circlesRef.current = cur;
+      simTimeRef.current += ITERS_PER_CHUNK * DT;
+      chunk++;
+      setFfProgress(chunk / CHUNKS);
       setElapsedSec(simTimeRef.current);
       let mSum = 0;
-      for (const c of circlesRef.current) mSum += c.mass;
+      for (const c of cur) mSum += c.mass;
       for (const e of enemiesRef.current) mSum += e.mass;
       setTotalMass(mSum);
-      setFastForwarding(false);
-    }, 30);
+      if (chunk < CHUNKS) {
+        window.setTimeout(runChunk, 0);
+      } else {
+        spawnAccRef.current = spawnAcc;
+        setFastForwarding(false);
+      }
+    };
+    window.setTimeout(runChunk, 30);
   };
 
   const handleChaos = (id: string) => {
@@ -461,7 +484,13 @@ export function OrbisCanvas() {
             <div className="mb-2 text-[11px] uppercase tracking-[0.3em]" style={{ color: "#d94a4a" }}>
               Radioactive
             </div>
-            <div className="text-[16px]">Fast-forwarding 1 hour…</div>
+            <div className="mb-3 text-[16px]">Fast-forwarding 1 hour… {Math.round(ffProgress * 100)}%</div>
+            <div className="h-[3px] w-full overflow-hidden rounded-full" style={{ background: "rgba(217,74,74,0.2)" }}>
+              <div
+                className="h-full"
+                style={{ width: `${ffProgress * 100}%`, background: "#d94a4a", transition: "width 80ms linear" }}
+              />
+            </div>
           </div>
         </div>
       )}
