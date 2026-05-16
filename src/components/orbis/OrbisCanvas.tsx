@@ -373,7 +373,7 @@ export function OrbisCanvas() {
     setFastForwarding(true);
     setFfProgress(0);
     const { w, h } = sizeRef.current;
-    const CHUNKS = 60;
+    const CHUNKS = 10;
     const ITERS_PER_CHUNK = 60;
     const DT = 1.0;
     let chunk = 0;
