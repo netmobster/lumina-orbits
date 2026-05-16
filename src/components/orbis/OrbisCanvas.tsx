@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DebugPanel } from "./DebugPanel";
+import { MusicControl } from "./MusicControl";
 import { BackgroundAura } from "./BackgroundAura";
 import { LoadingOrb } from "./LoadingOrb";
 import { findCircleAt, seedCircles, spawnFromEdge, splitCircle, step, mergeCircles } from "@/lib/orbis/sim";
@@ -307,6 +308,8 @@ export function OrbisCanvas() {
         setHelpOpen((v) => !v);
       } else if (e.key === "Escape") {
         setHelpOpen(false);
+      } else if (e.key === "m" || e.key === "M") {
+        window.dispatchEvent(new CustomEvent("orbis:toggle-music"));
       }
     };
     window.addEventListener("keydown", onKey);
@@ -328,6 +331,7 @@ export function OrbisCanvas() {
       <BackgroundAura intensity={configState.auraIntensity} driftSpeed={configState.ribbonDrift} />
       <canvas ref={canvasRef} className="fixed inset-0 z-10 block cursor-crosshair" />
       <LoadingOrb visible={loading} />
+      <MusicControl />
       <DebugPanel
         config={configState}
         onChange={handleChange}
@@ -401,6 +405,7 @@ function HelpOverlay({ open, onClose }: { open: boolean; onClose: () => void }) 
     ["1 – 6", "Switch debug panel tab (Time, Planets, Background, Visuals, Experimental, Radioactive)"],
     ["? / H", "Toggle this help"],
     ["Esc", "Close help"],
+    ["M", "Mute / unmute music"],
     ["Click", "Select a circle"],
     ["Click + click", "Attempt merge with the selected circle"],
     ["Right-click", "Split the selected circle in two"],
