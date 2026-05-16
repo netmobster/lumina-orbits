@@ -268,7 +268,7 @@ export function DebugPanel({
               className="flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-[12px] transition-colors hover:bg-white/5"
               style={{ borderColor: "#d94a4a", color: "#f0d0d0" }}
             >
-              <FastForward size={13} /> {">> 1 hour"}
+              <FastForward size={13} /> {">> 10 minutes"}
             </button>
             <div className="grid grid-cols-3 gap-1.5">
               {([

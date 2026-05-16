@@ -373,7 +373,7 @@ export function OrbisCanvas() {
     setFastForwarding(true);
     setFfProgress(0);
     const { w, h } = sizeRef.current;
-    const CHUNKS = 60;
+    const CHUNKS = 10;
     const ITERS_PER_CHUNK = 60;
     const DT = 1.0;
     let chunk = 0;
@@ -484,7 +484,7 @@ export function OrbisCanvas() {
             <div className="mb-2 text-[11px] uppercase tracking-[0.3em]" style={{ color: "#d94a4a" }}>
               Radioactive
             </div>
-            <div className="mb-3 text-[16px]">Fast-forwarding 1 hour… {Math.round(ffProgress * 100)}%</div>
+            <div className="mb-3 text-[16px]">Fast-forwarding 10 minutes… {Math.round(ffProgress * 100)}%</div>
             <div className="h-[3px] w-full overflow-hidden rounded-full" style={{ background: "rgba(217,74,74,0.2)" }}>
               <div
                 className="h-full"
