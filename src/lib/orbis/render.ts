@@ -17,17 +17,43 @@ export function render(
   // trails (under everything)
   if (opts.showTrails !== false) {
     ctx.globalCompositeOperation = "lighter";
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    const userMul = trailOpacity / 100; // slider as multiplier
     for (const c of circles) {
       if (c.trail.length < 2) continue;
-      ctx.lineCap = "round";
-      for (let i = 1; i < c.trail.length; i++) {
-        const t = i / c.trail.length;
-        const a = Math.min(1, (0.04 + t * 0.18) * trailOpacity);
-        ctx.strokeStyle = hexA(c.color.core, a);
-        ctx.lineWidth = Math.max(0.8, radiusOf(c.mass) * 0.5 * t);
+      const speed = Math.hypot(c.vx, c.vy);
+      const speedFactor = Math.min(1, speed / 60); // 0..1
+      // visible portion of stored trail scales with speed
+      const portion = 0.2 + speedFactor * 0.8;
+      const visible = Math.max(2, Math.floor(c.trail.length * portion));
+      const start = c.trail.length - visible;
+      // head alpha cap ~30% at top speed, ~9% when nearly still
+      const headAlpha = 0.30 * (0.3 + speedFactor * 0.7) * userMul;
+      const r = radiusOf(c.mass);
+      const coreMaxWidth = Math.max(0.8, r * 0.55);
+
+      for (let i = start + 1; i < c.trail.length; i++) {
+        const local = (i - start) / visible; // 0 (tail) → 1 (head)
+        const a = headAlpha * local;
+        if (a < 0.005) continue;
+        const coreW = Math.max(0.6, coreMaxWidth * local);
+        const glowW = coreW * 3.2;
+        const x0 = c.trail[i - 1].x, y0 = c.trail[i - 1].y;
+        const x1 = c.trail[i].x,     y1 = c.trail[i].y;
+        // outer glow halo — wider, ~25% of core alpha
+        ctx.strokeStyle = hexA(c.color.core, a * 0.25);
+        ctx.lineWidth = glowW;
         ctx.beginPath();
-        ctx.moveTo(c.trail[i - 1].x, c.trail[i - 1].y);
-        ctx.lineTo(c.trail[i].x, c.trail[i].y);
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+        // bright core on top
+        ctx.strokeStyle = hexA(c.color.core, a);
+        ctx.lineWidth = coreW;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
         ctx.stroke();
       }
     }
