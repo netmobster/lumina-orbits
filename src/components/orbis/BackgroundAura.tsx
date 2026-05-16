@@ -21,6 +21,8 @@ const RIBBONS: RibbonDef[] = [
   // brighter mint / seafoam — drive caustic feel
   { color: "#7be3c4", w: "100vw", h: "18vh", top: "35%", left: "10%",  anim: "orbis-drift-7", baseDuration: 58, depth: 22 },
   { color: "#a8e8d4", w: "95vw",  h: "14vh", top: "60%", left: "50%",  anim: "orbis-drift-8", baseDuration: 66, depth: 16 },
+  // soft white wash for texture
+  { color: "#f4faf7", w: "105vw", h: "16vh", top: "25%", left: "-15%", anim: "orbis-drift-9", baseDuration: 82, depth: 10 },
 ];
 
 type Props = { intensity?: number; driftSpeed?: number };
@@ -193,6 +195,11 @@ export function BackgroundAura({ intensity = 5, driftSpeed = 1 }: Props) {
           0%   { transform: translate(0,0) rotate(1deg) scaleX(1); }
           50%  { transform: translate(-35px, 40px) rotate(-3deg) scaleX(1.06); }
           100% { transform: translate(0,0) rotate(1deg) scaleX(1); }
+        }
+        @keyframes orbis-drift-9 {
+          0%   { transform: translate(0,0) rotate(-2deg) scaleX(1); }
+          50%  { transform: translate(30px, -30px) rotate(2deg) scaleX(1.05); }
+          100% { transform: translate(0,0) rotate(-2deg) scaleX(1); }
         }
       `}</style>
     </div>
