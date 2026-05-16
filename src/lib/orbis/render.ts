@@ -21,9 +21,9 @@ export function render(
       ctx.lineCap = "round";
       for (let i = 1; i < c.trail.length; i++) {
         const t = i / c.trail.length;
-        const a = 0.04 + t * 0.18;
+        const a = Math.min(1, (0.04 + t * 0.18) * 10);
         ctx.strokeStyle = hexA(c.color.core, a);
-        ctx.lineWidth = Math.max(0.5, radiusOf(c.mass) * 0.35 * t);
+        ctx.lineWidth = Math.max(0.8, radiusOf(c.mass) * 0.5 * t);
         ctx.beginPath();
         ctx.moveTo(c.trail[i - 1].x, c.trail[i - 1].y);
         ctx.lineTo(c.trail[i].x, c.trail[i].y);
