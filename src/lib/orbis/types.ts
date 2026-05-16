@@ -63,6 +63,9 @@ export const DEFAULT_CONFIG: SimConfig = {
 
 export const radiusOf = (mass: number) => Math.sqrt(mass) * 4;
 
+/** Sim mass units that equal one Earth mass in the stats HUD. */
+export const EARTH_MASS_UNITS = 25;
+
 export type Preset = "chaos" | "orbit" | "spiral" | "life";
 
 export type PresetPatch = Partial<SimConfig> & { speed?: number };
