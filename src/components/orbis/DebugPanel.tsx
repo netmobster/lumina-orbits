@@ -234,9 +234,12 @@ export function DebugPanel({
           </>}
 
           {tab === "xl" && <>
-          <Slider label="Split randomness" hint="Average random splits per second. Big bodies spontaneously break in two."
-            min={0} max={1} step={0.01} value={config.splitRate}
-            onChange={(v) => onChange({ splitRate: v })} format={(v) => v.toFixed(2) + "/s"} />
+          <Toggle label="Experimental features" checked={config.xlEnabled} onChange={(v) => onChange({ xlEnabled: v })} />
+          <div style={{ opacity: config.xlEnabled ? 1 : 0.4, pointerEvents: config.xlEnabled ? "auto" : "none" }}>
+            <Slider label="Split randomness" hint="Average random splits per second. Big bodies spontaneously break in two."
+              min={0} max={1} step={0.01} value={config.splitRate}
+              onChange={(v) => onChange({ splitRate: v })} format={(v) => v.toFixed(2) + "/s"} />
+          </div>
           </>}
 
           {tab === "radio" && <>
