@@ -7,7 +7,7 @@ import { DEFAULT_CONFIG, PRESETS, type Circle, type Preset, type SimConfig } fro
 export function OrbisCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const circlesRef = useRef<Circle[]>([]);
-  const configRef = useRef<SimConfig>({ ...DEFAULT_CONFIG });
+  const configRef = useRef<SimConfig>({ ...DEFAULT_CONFIG, ...PRESETS.orbit });
   const selectedRef = useRef<number | null>(null);
   const sizeRef = useRef({ w: 0, h: 0 });
   const spawnAccRef = useRef(0);
@@ -15,7 +15,8 @@ export function OrbisCanvas() {
   const showVectorsRef = useRef(false);
   const showTrailsRef = useRef(true);
 
-  const [configState, setConfigState] = useState<SimConfig>({ ...DEFAULT_CONFIG });
+  const [configState, setConfigState] = useState<SimConfig>({ ...DEFAULT_CONFIG, ...PRESETS.orbit });
+  const [activePreset, setActivePreset] = useState<Preset | null>("orbit");
   const [fps, setFps] = useState(0);
   const [count, setCount] = useState(0);
   const [speed, setSpeed] = useState(1);
@@ -152,6 +153,7 @@ export function OrbisCanvas() {
   const handleChange = (patch: Partial<SimConfig>) => {
     configRef.current = { ...configRef.current, ...patch };
     setConfigState((s) => ({ ...s, ...patch }));
+    setActivePreset(null);
   };
 
   const handleReset = () => {
@@ -164,6 +166,7 @@ export function OrbisCanvas() {
     const patch = PRESETS[p];
     configRef.current = { ...configRef.current, ...patch };
     setConfigState((s) => ({ ...s, ...patch }));
+    setActivePreset(p);
   };
 
   const handleSpeed = (s: number) => {
@@ -191,6 +194,7 @@ export function OrbisCanvas() {
         count={count}
         onReset={handleReset}
         onPreset={handlePreset}
+        activePreset={activePreset}
         speed={speed}
         onSpeed={handleSpeed}
         showVectors={showVectors}

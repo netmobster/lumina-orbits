@@ -93,6 +93,13 @@ export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h
     const c = circles[i];
     c.vx *= dampPerFrame;
     c.vy *= dampPerFrame;
+    // minimum velocity floor — prevents circles from dying
+    const speed = Math.hypot(c.vx, c.vy);
+    if (speed < 3 && speed > 0) {
+      const scale = 3 / speed;
+      c.vx *= scale;
+      c.vy *= scale;
+    }
     c.x += c.vx * dt;
     c.y += c.vy * dt;
     c.trail.push({ x: c.x, y: c.y });
