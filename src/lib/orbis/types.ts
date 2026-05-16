@@ -29,6 +29,7 @@ export type SimConfig = {
   trailOpacity: number;
   glowSoftness: number;
   tailFadeRate: number;
+  splitRate: number;
 };
 
 export const DEFAULT_CONFIG: SimConfig = {
@@ -43,16 +44,23 @@ export const DEFAULT_CONFIG: SimConfig = {
   trailOpacity: 100,
   glowSoftness: 3.2,
   tailFadeRate: 1.5,
+  splitRate: 0,
 };
 
 export const radiusOf = (mass: number) => Math.sqrt(mass) * 4;
 
-export type Preset = "drift" | "orbit" | "spiral" | "life";
+export type Preset = "chaos" | "orbit" | "spiral" | "life";
 
 export type PresetPatch = Partial<SimConfig> & { speed?: number };
 
 export const PRESETS: Record<Preset, PresetPatch> = {
-  drift:  { G: 0.15, damping: 0.9998, mergeThreshold: 50, maxForce: 60 },
+  chaos:  {
+    G: 0.7, damping: 1.0, mergeThreshold: 15, maxForce: 400,
+    spawnRate: 15, auraIntensity: 10, ribbonDrift: 5,
+    trailLength: 1400, trailOpacity: 200,
+    glowSoftness: 6, tailFadeRate: 0.4,
+    splitRate: 0.6, speed: 8,
+  },
   orbit:  { G: 0.35, damping: 0.9995, mergeThreshold: 30, maxForce: 120 },
   spiral: { G: 0.55, damping: 0.999,  mergeThreshold: 20, maxForce: 200 },
   life:   {
