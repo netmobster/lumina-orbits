@@ -194,8 +194,23 @@ export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h
     }
   }
 
-  if (mergedIds.size === 0) return circles;
-  return circles.filter((c) => !mergedIds.has(c.id)).concat(newCircles);
+  let result = mergedIds.size === 0
+    ? circles
+    : circles.filter((c) => !mergedIds.has(c.id)).concat(newCircles);
+
+  // random auto-splits (splits per second)
+  if (cfg.splitRate > 0 && result.length < 80) {
+    const p = cfg.splitRate * dt;
+    if (Math.random() < p) {
+      const candidates = result.filter((c) => c.mass > 6);
+      if (candidates.length) {
+        const victim = candidates[(Math.random() * candidates.length) | 0];
+        const [a, b] = splitCircle(victim);
+        result = result.filter((c) => c.id !== victim.id).concat([a, b]);
+      }
+    }
+  }
+  return result;
 }
 
 export function mergeCircles(a: Circle, b: Circle): Circle {

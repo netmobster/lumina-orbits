@@ -58,7 +58,7 @@ export function DebugPanel({
           <div className="space-y-1.5">
             <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--orbis-text-muted)" }}>Preset</span>
             <div className="grid grid-cols-4 gap-1.5">
-              {(["drift", "orbit", "spiral", "life"] as Preset[]).map((p) => {
+              {(["chaos", "orbit", "spiral", "life"] as Preset[]).map((p) => {
                 const active = activePreset === p;
                 return (
                   <button
@@ -129,6 +129,8 @@ export function DebugPanel({
             onChange={(v) => onChange({ glowSoftness: v })} format={(v) => v.toFixed(1) + "×"} />
           <Slider label="Tail fade rate" min={0.3} max={4} step={0.05} value={config.tailFadeRate}
             onChange={(v) => onChange({ tailFadeRate: v })} format={(v) => v.toFixed(2)} />
+          <Slider label="Split randomness" min={0} max={2} step={0.05} value={config.splitRate}
+            onChange={(v) => onChange({ splitRate: v })} format={(v) => v.toFixed(2) + "/s"} />
 
           {/* Toggles */}
           <div className="space-y-1.5">
