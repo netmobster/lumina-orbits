@@ -1,29 +1,51 @@
-# Make velocity vectors clearer
+# Replace `drift` with `CHAOS` preset + auto-split slider
 
-## Diagnosis
+## 1. New `chaos` preset
 
-Vector length is `velocity * 0.6`. After damping, typical speeds settle around 3–10 (the velocity floor is 3), giving arrows of only ~2–6px — invisible behind the circle's glow. The arrow color and width are fixed regardless of speed, so faster bodies don't stand out either.
+In `src/lib/orbis/types.ts`:
 
-## Changes in `src/lib/orbis/render.ts`
+- Change `Preset` type: `"drift"` → `"chaos"`.
+- Replace the `drift` entry in `PRESETS` with an extreme `chaos` entry:
+  - `G: 0.7` (strong gravity → wild slingshots)
+  - `damping: 1.0` (no energy loss)
+  - `mergeThreshold: 15` (frequent merges)
+  - `maxForce: 400` (allow violent kicks)
+  - `spawnRate: 15` (constant new bodies)
+  - `auraIntensity: 10`, `ribbonDrift: 5`
+  - `trailLength: 1400`, `trailOpacity: 200` (max visuals)
+  - `glowSoftness: 6`, `tailFadeRate: 0.4` (long, slow-fading glowing tails)
+  - `splitRate: 0.6` (new field, see §2)
+  - `speed: 8`
 
-1. **Longer arrows with a minimum length**
-   - Replace `scale = 0.6` with `scale = 1.6`, and clamp output length to `max(minLen, …)` where `minLen = r + 14` (always pokes out past the body) and a cap of `220px` to keep huge bursts on-screen.
-   - Anchor the arrow at the body's edge rather than its center: start at `(c.x + nx*r, c.y + ny*r)` where `(nx, ny)` is the velocity unit vector. The center dot stays at `(c.x, c.y)`.
+## 2. New `splitRate` slider (random auto-splits)
 
-2. **Speed-driven brightness and thickness**
-   - Map speed to a normalized factor `k = clamp(speed / 60, 0, 1)`.
-   - `alpha = 0.55 + k * 0.45` → always at least 0.55 (never fades to nothing while moving), brighter when fast.
-   - `lineWidth = 1.2 + k * 1.8` (1.2–3px).
-   - Arrowhead size scales similarly: `ah = 5 + k * 5`.
-   - Stationary case (`speed < 0.5`): skip the line/arrow but still draw the center dot in dim teal so the body is marked.
+Add `splitRate: number` to `SimConfig` (0–2, default `0`, meaning splits per second across the whole field).
 
-3. **Subtle outer glow for legibility over bright circles**
-   - Draw each vector twice: a wider, semi-transparent dark teal stroke underneath (`rgba(10,30,28,0.55)`, `lineWidth + 2`), then the bright stroke on top. Reads cleanly over any ribbon color.
+In `src/lib/orbis/sim.ts` `step(...)`:
 
-4. **Keep composite mode `source-over`** (already correct) so vectors aren't washed out by `lighter` blending with the glow underneath.
+- Each frame, with probability `splitRate * dt`, pick a random circle with `mass > ~6` and call existing `splitCircle(c)`, replacing it with the two halves (mirroring the right-click split path).
+- Skip if circle count is already at a sane cap (e.g. 80) to avoid runaway.
 
-## Notes
+In `src/components/orbis/DebugPanel.tsx`:
 
-- No new props, no debug-panel changes needed — the toggle already exists.
-- Color stays teal (`rgb(120,255,220)`) so it ties to the accent.
-- The arrow now visibly grows/brightens with speed, so users can read momentum at a glance.
+- Add slider "Split randomness" 0–2 step 0.05, formatted `×/s`.
+- Replace the `"drift"` entry in the preset button list with `"chaos"` (label uppercase "CHAOS").
+
+In `src/components/orbis/OrbisCanvas.tsx`:
+
+- Default preset stays `orbit`; just update any `"drift"` references (none in render path beyond types).
+
+## 3. Suggested extras (asking before building)
+
+You asked "Can you figure out/suggest what" — I'd add these to really push the extremes, let me know which to include:
+
+- **Burst spawn on preset switch**: when CHAOS is activated, immediately seed ~25 extra circles with random velocities, so it kicks off chaotic instead of ramping up.
+- **Random velocity kicks**: a `turbulence` slider (0–1) that every ~0.5s adds a small random impulse to a random subset of circles.
+- **Mass-jitter on split**: instead of 50/50 split, randomize 30/70 → 70/30 so fragments are uneven and orbits get weirder.
+
+## Files touched
+
+- `src/lib/orbis/types.ts` — rename preset, add `splitRate`, retune `chaos`.
+- `src/lib/orbis/sim.ts` — random auto-split inside `step`.
+- `src/components/orbis/DebugPanel.tsx` — preset label + new slider.
+- `src/components/orbis/OrbisCanvas.tsx` — preset key rename only.
