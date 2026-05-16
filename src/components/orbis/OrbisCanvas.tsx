@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { DebugPanel } from "./DebugPanel";
 import { MusicControl } from "./MusicControl";
+import { SfxControl } from "./SfxControl";
 import { BackgroundAura } from "./BackgroundAura";
 import { LoadingOrb } from "./LoadingOrb";
 import { StatsHUD } from "./StatsHUD";
@@ -352,6 +353,8 @@ export function OrbisCanvas() {
         setHelpOpen(false);
       } else if (e.key === "m" || e.key === "M") {
         window.dispatchEvent(new CustomEvent("orbis:toggle-music"));
+      } else if (e.key === "f" || e.key === "F") {
+        window.dispatchEvent(new CustomEvent("orbis:toggle-sfx"));
       }
     };
     window.addEventListener("keydown", onKey);
@@ -446,6 +449,7 @@ export function OrbisCanvas() {
       <canvas ref={canvasRef} className="fixed inset-0 z-10 block cursor-crosshair" />
       <LoadingOrb visible={loading} />
       <MusicControl />
+      <SfxControl />
       <StatsHUD elapsedSec={elapsedSec} totalMass={totalMass} />
       <DebugPanel
         config={configState}
@@ -551,6 +555,7 @@ function HelpOverlay({ open, onClose }: { open: boolean; onClose: () => void }) 
     ["? / H", "Toggle this help"],
     ["Esc", "Close help"],
     ["M", "Mute / unmute music"],
+    ["F", "Mute / unmute sound effects"],
     ["Click", "Select a circle"],
     ["Click + click", "Attempt merge with the selected circle"],
     ["Right-click", "Split the selected circle in two"],
