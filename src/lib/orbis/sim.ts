@@ -70,7 +70,7 @@ export function spawnFromEdge(w: number, h: number): Circle {
 }
 
 const MIN_DIST = 4;
-const TRAIL_MAX = 110;
+const TRAIL_MAX_CAP = 2000;
 
 export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h: number): Circle[] {
   const n = circles.length;
@@ -120,7 +120,8 @@ export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h
     c.x += c.vx * dt;
     c.y += c.vy * dt;
     c.trail.push({ x: c.x, y: c.y });
-    if (c.trail.length > TRAIL_MAX) c.trail.shift();
+    const cap = Math.min(TRAIL_MAX_CAP, Math.max(2, cfg.trailLength | 0));
+    while (c.trail.length > cap) c.trail.shift();
     const r = radiusOf(c.mass);
     if (c.x < r) { c.x = r; c.vx = -c.vx * 0.7; }
     else if (c.x > w - r) { c.x = w - r; c.vx = -c.vx * 0.7; }
