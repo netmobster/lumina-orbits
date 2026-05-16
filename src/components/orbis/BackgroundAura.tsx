@@ -20,9 +20,9 @@ const RIBBONS: RibbonDef[] = [
 ];
 
 export function BackgroundAura({ intensity = 0.5 }: { intensity?: number }) {
-  // intensity 0..1 → opacity 0.02..0.12, blur 40..90px
-  const baseOpacity = 0.02 + intensity * 0.10;
-  const blur = 40 + intensity * 50;
+  // intensity 1..5 → opacity 0.04..0.20, blur 52..100px
+  const baseOpacity = 0.04 * intensity;
+  const blur = 40 + intensity * 12;
 
   // mouse parallax — normalized -0.5..0.5
   const [mouse, setMouse] = useState({ x: 0, y: 0 });
