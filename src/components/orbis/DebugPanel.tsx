@@ -60,8 +60,8 @@ export function DebugPanel({
           {/* Presets */}
           <div className="space-y-1.5">
             <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--orbis-text-muted)" }}>Preset</span>
-            <div className="grid grid-cols-3 gap-1.5">
-              {(["drift", "orbit", "spiral"] as Preset[]).map((p) => {
+            <div className="grid grid-cols-4 gap-1.5">
+              {(["drift", "orbit", "spiral", "life"] as Preset[]).map((p) => {
                 const active = activePreset === p;
                 return (
                   <button
@@ -83,7 +83,7 @@ export function DebugPanel({
           {/* Speed + pause */}
           <div className="space-y-1.5">
             <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--orbis-text-muted)" }}>Time</span>
-            <div className="grid grid-cols-5 gap-1.5">
+            <div className="grid grid-cols-6 gap-1.5">
               <button
                 onClick={() => onSpeed(speed === 0 ? 1 : 0)}
                 className="flex items-center justify-center rounded-xl border px-2 py-1.5 text-[12px] transition-colors hover:bg-white/5"
@@ -94,7 +94,7 @@ export function DebugPanel({
               >
                 {speed === 0 ? <Play size={12} /> : <Pause size={12} />}
               </button>
-              {[0.5, 1, 2, 5].map((s) => (
+              {[0.5, 1, 2, 5, 10].map((s) => (
                 <button
                   key={s}
                   onClick={() => onSpeed(s)}
@@ -118,7 +118,7 @@ export function DebugPanel({
             onChange={(v) => onChange({ damping: v })} format={(v) => v.toFixed(4)} />
           <Slider label="Merge threshold" min={20} max={200} step={1} value={config.mergeThreshold}
             onChange={(v) => onChange({ mergeThreshold: v })} format={(v) => v.toFixed(0)} />
-          <Slider label="Spawn rate (s)" min={3} max={500} step={1} value={config.spawnRate}
+          <Slider label="Spawn rate (s)" min={3} max={1000} step={1} value={config.spawnRate}
             onChange={(v) => onChange({ spawnRate: v })} format={(v) => v.toFixed(0)} />
           <Slider label="Aura intensity" min={1} max={10} step={0.1} value={config.auraIntensity}
             onChange={(v) => onChange({ auraIntensity: v })} format={(v) => v.toFixed(1)} />
