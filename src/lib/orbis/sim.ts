@@ -24,7 +24,6 @@ export function seedCircles(w: number, h: number, cfg: SimConfig): Circle[] {
   const n = 8 + Math.floor(Math.random() * 5);
   const out: Circle[] = [];
   for (let i = 0; i < n; i++) {
-    const mass = 5 + Math.random() * 35;
     out.push(
       makeCircle({
         x: 80 + Math.random() * (w - 160),
