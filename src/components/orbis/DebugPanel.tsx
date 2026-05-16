@@ -125,6 +125,10 @@ export function DebugPanel({
             onChange={(v) => onChange({ trailLength: v })} format={(v) => v.toFixed(0)} />
           <Slider label="Trail visibility" min={1} max={200} step={1} value={config.trailOpacity}
             onChange={(v) => onChange({ trailOpacity: v })} format={(v) => v.toFixed(0) + "×"} />
+          <Slider label="Glow softness" min={1} max={8} step={0.1} value={config.glowSoftness}
+            onChange={(v) => onChange({ glowSoftness: v })} format={(v) => v.toFixed(1) + "×"} />
+          <Slider label="Tail fade rate" min={0.3} max={4} step={0.05} value={config.tailFadeRate}
+            onChange={(v) => onChange({ tailFadeRate: v })} format={(v) => v.toFixed(2)} />
 
           {/* Toggles */}
           <div className="space-y-1.5">
