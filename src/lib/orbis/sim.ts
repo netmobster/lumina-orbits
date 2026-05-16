@@ -265,6 +265,9 @@ export function mergeCircles(a: Circle, b: Circle): Circle {
   vx += Math.cos(ang) * burst;
   vy += Math.sin(ang) * burst;
   const color = blendColor(a.color, b.color, a.mass, b.mass);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("orbis:sfx:merge"));
+  }
   return {
     id: nextId(),
     x, y, vx, vy,
