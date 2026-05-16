@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DebugPanel } from "./DebugPanel";
+import { BackgroundAura } from "./BackgroundAura";
 import { findCircleAt, seedCircles, spawnFromEdge, splitCircle, step, mergeCircles } from "@/lib/orbis/sim";
 import { render } from "@/lib/orbis/render";
 import { DEFAULT_CONFIG, PRESETS, type Circle, type Preset, type SimConfig } from "@/lib/orbis/types";
@@ -195,6 +196,7 @@ export function OrbisCanvas() {
 
   return (
     <>
+      <BackgroundAura intensity={configState.auraIntensity} />
       <canvas ref={canvasRef} className="fixed inset-0 z-10 block cursor-crosshair" />
       <DebugPanel
         config={configState}
