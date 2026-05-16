@@ -28,8 +28,8 @@ export function seedCircles(w: number, h: number): Circle[] {
       makeCircle({
         x: 80 + Math.random() * (w - 160),
         y: 80 + Math.random() * (h - 160),
-        vx: (Math.random() - 0.5) * 30,
-        vy: (Math.random() - 0.5) * 30,
+        vx: (Math.random() - 0.5) * 20,
+        vy: (Math.random() - 0.5) * 20,
         mass,
       }),
     );
@@ -47,7 +47,7 @@ export function spawnFromEdge(w: number, h: number): Circle {
   const cx = w / 2, cy = h / 2;
   const dx = cx - x, dy = cy - y;
   const len = Math.hypot(dx, dy) || 1;
-  const speed = 25 + Math.random() * 20;
+  const speed = 15 + Math.random() * 10;
   const jitter = 0.4;
   return makeCircle({
     x, y,
