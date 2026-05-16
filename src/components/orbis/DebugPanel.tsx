@@ -250,15 +250,15 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
 }
 
 function Slider({
-  label, min, max, step, value, onChange, format,
+  label, hint, min, max, step, value, onChange, format,
 }: {
-  label: string; min: number; max: number; step: number; value: number;
+  label: string; hint?: string; min: number; max: number; step: number; value: number;
   onChange: (v: number) => void; format: (v: number) => string;
 }) {
   return (
-    <label className="block space-y-1.5">
+    <label className="block space-y-1.5" title={hint}>
       <div className="flex items-center justify-between">
-        <span style={{ color: "var(--orbis-text-muted)" }}>{label}</span>
+        <span style={{ color: "var(--orbis-text-muted)" }} className={hint ? "decoration-dotted underline-offset-4 underline" : ""}>{label}</span>
         <span className="tabular-nums" style={{ color: "var(--orbis-accent)" }}>{format(value)}</span>
       </div>
       <input
@@ -267,6 +267,9 @@ function Slider({
         onChange={(e) => onChange(parseFloat(e.target.value))}
         className="orbis-slider w-full"
       />
+      {hint && (
+        <p className="text-[10.5px] leading-snug" style={{ color: "var(--orbis-text-muted)", opacity: 0.7 }}>{hint}</p>
+      )}
       <style>{`
         .orbis-slider {
           -webkit-appearance: none;
