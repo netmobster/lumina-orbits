@@ -9,6 +9,7 @@ type Props = {
   count: number;
   onReset: () => void;
   onPreset: (p: Preset) => void;
+  activePreset: Preset | null;
   speed: number;
   onSpeed: (s: number) => void;
   showVectors: boolean;
@@ -19,7 +20,7 @@ type Props = {
 
 export function DebugPanel({
   config, onChange, fps, count, onReset,
-  onPreset, speed, onSpeed,
+  onPreset, activePreset, speed, onSpeed,
   showVectors, onToggleVectors,
   showTrails, onToggleTrails,
 }: Props) {
@@ -58,16 +59,22 @@ export function DebugPanel({
           <div className="space-y-1.5">
             <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--orbis-text-muted)" }}>Preset</span>
             <div className="grid grid-cols-3 gap-1.5">
-              {(["drift", "orbit", "spiral"] as Preset[]).map((p) => (
-                <button
-                  key={p}
-                  onClick={() => onPreset(p)}
-                  className="rounded-xl border px-2 py-1.5 text-[12px] capitalize transition-colors hover:bg-white/5"
-                  style={{ borderColor: "var(--orbis-hairline)", color: "var(--orbis-text)" }}
-                >
-                  {p}
-                </button>
-              ))}
+              {(["drift", "orbit", "spiral"] as Preset[]).map((p) => {
+                const active = activePreset === p;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => onPreset(p)}
+                    className="rounded-xl border px-2 py-1.5 text-[12px] capitalize transition-colors hover:bg-white/5"
+                    style={{
+                      borderColor: active ? "var(--orbis-accent)" : "var(--orbis-hairline)",
+                      color: active ? "var(--orbis-accent)" : "var(--orbis-text)",
+                    }}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
