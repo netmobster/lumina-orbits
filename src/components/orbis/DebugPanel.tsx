@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, RotateCcw, Pause, Play, Clock, Orbit, Mountain, Sparkles, Radiation } from "lucide-react";
+import { ChevronDown, ChevronUp, RotateCcw, Pause, Play, Clock, Orbit, Mountain, Sparkles, Radiation, Star } from "lucide-react";
 import type { Preset, SimConfig } from "@/lib/orbis/types";
+import type { EnemyConfig } from "@/lib/orbis/enemies";
 
 type Props = {
   config: SimConfig;
@@ -15,31 +16,35 @@ type Props = {
   onSpeed: (s: number) => void;
   showTrails: boolean;
   onToggleTrails: (v: boolean) => void;
+  enemyConfig: EnemyConfig;
+  onEnemyChange: (patch: Partial<EnemyConfig>) => void;
 };
 
 export function DebugPanel({
   config, onChange, fps, count, avgSpeed, onReset,
   onPreset, activePreset, speed, onSpeed,
   showTrails, onToggleTrails,
+  enemyConfig, onEnemyChange,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
-  type Tab = "time" | "planets" | "bg" | "visuals" | "xl";
+  type Tab = "time" | "planets" | "bg" | "visuals" | "xl" | "radio";
   const [tab, setTab] = useState<Tab>("time");
-  const tabs: { id: Tab; label: string; Icon: typeof Clock }[] = [
+  const tabs: { id: Tab; label: string; Icon: typeof Clock; badge?: boolean }[] = [
     { id: "time", label: "Time", Icon: Clock },
     { id: "planets", label: "Planets", Icon: Orbit },
     { id: "bg", label: "Background", Icon: Mountain },
     { id: "visuals", label: "Visuals", Icon: Sparkles },
-    { id: "xl", label: "Experimental", Icon: Radiation },
+    { id: "xl", label: "Experimental", Icon: Radiation, badge: true },
+    { id: "radio", label: "Radioactive", Icon: Star },
   ];
 
-  // keyboard shortcuts 1–5 → tabs
+  // keyboard shortcuts 1–6 → tabs
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
-      const idx = ["1", "2", "3", "4", "5"].indexOf(e.key);
+      const idx = ["1", "2", "3", "4", "5", "6"].indexOf(e.key);
       if (idx === -1) return;
       setTab(tabs[idx].id);
       setCollapsed(false);
@@ -49,17 +54,30 @@ export function DebugPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return (
-    <div
-      className="fixed right-4 top-4 z-20 w-72 rounded-3xl border text-[13px]"
-      style={{
+  const radioActive = tab === "radio";
+  const wrapperStyle: React.CSSProperties = radioActive
+    ? {
+        background: "rgba(60, 8, 8, 0.75)",
+        borderColor: "rgba(217, 74, 74, 0.4)",
+        color: "var(--orbis-text)",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+        fontFamily: "'DM Sans', system-ui, sans-serif",
+        ["--orbis-accent" as never]: "#d94a4a",
+      }
+    : {
         background: "var(--orbis-surface)",
         borderColor: "var(--orbis-hairline)",
         color: "var(--orbis-text)",
         backdropFilter: "blur(14px)",
         WebkitBackdropFilter: "blur(14px)",
         fontFamily: "'DM Sans', system-ui, sans-serif",
-      }}
+      };
+
+  return (
+    <div
+      className="fixed right-4 top-4 z-20 w-72 rounded-3xl border text-[13px]"
+      style={wrapperStyle}
     >
       <button
         onClick={() => setCollapsed((v) => !v)}
@@ -80,22 +98,36 @@ export function DebugPanel({
       {!collapsed && (
         <div className="space-y-4 px-4 pb-4">
           {/* Tabs */}
-          <div className="grid grid-cols-5 gap-1.5">
-              {tabs.map(({ id, label, Icon }, i) => {
+          <div className="grid grid-cols-6 gap-1.5">
+              {tabs.map(({ id, label, Icon, badge }, i) => {
               const active = tab === id;
+              const isRadio = id === "radio";
               return (
                 <button
                   key={id}
                   onClick={() => setTab(id)}
                     title={`${label} (${i + 1})`}
                   aria-label={label}
-                  className="flex items-center justify-center rounded-xl border py-1.5 transition-colors hover:bg-white/5"
+                  className="relative flex items-center justify-center rounded-xl border py-1.5 transition-colors hover:bg-white/5"
                   style={{
-                    borderColor: active ? "var(--orbis-accent)" : "var(--orbis-hairline)",
-                    color: active ? "var(--orbis-accent)" : "var(--orbis-text-muted)",
+                    borderColor: active
+                      ? (isRadio ? "#d94a4a" : "var(--orbis-accent)")
+                      : "var(--orbis-hairline)",
+                    color: active
+                      ? (isRadio ? "#d94a4a" : "var(--orbis-accent)")
+                      : (isRadio ? "rgba(217,74,74,0.65)" : "var(--orbis-text-muted)"),
+                    textShadow: isRadio ? "0 0 6px rgba(217,74,74,0.5)" : undefined,
                   }}
                 >
                   <Icon size={14} />
+                  {badge && (
+                    <Star
+                      size={7}
+                      fill="#d94a4a"
+                      stroke="#d94a4a"
+                      className="absolute -right-0.5 -top-0.5"
+                    />
+                  )}
                 </button>
               );
             })}
@@ -207,6 +239,35 @@ export function DebugPanel({
             onChange={(v) => onChange({ splitRate: v })} format={(v) => v.toFixed(2) + "/s"} />
           </>}
 
+          {tab === "radio" && <>
+          <Toggle label="Enemies" checked={enemyConfig.enabled} onChange={(v) => onEnemyChange({ enabled: v })} />
+          <Slider label="Wave rate (s)" hint="Seconds between enemy waves. Lower = relentless."
+            min={5} max={60} step={1} value={enemyConfig.waveRate}
+            onChange={(v) => onEnemyChange({ waveRate: v })} format={(v) => v.toFixed(0)} />
+          <Slider label="Swarm size" hint="Scouts spawned per wave."
+            min={1} max={20} step={1} value={enemyConfig.swarmSize}
+            onChange={(v) => onEnemyChange({ swarmSize: v })} format={(v) => v.toFixed(0)} />
+          <Slider label="Scout speed" hint="Movement speed multiplier. Scouts ignore gravity entirely."
+            min={0.1} max={5} step={0.1} value={enemyConfig.scoutSpeed}
+            onChange={(v) => onEnemyChange({ scoutSpeed: v })} format={(v) => v.toFixed(1) + "×"} />
+          <Slider label="Attach rate" hint="Probability a scout latches on contact. ≥1 = always latches."
+            min={0.1} max={3} step={0.1} value={enemyConfig.attachRate}
+            onChange={(v) => onEnemyChange({ attachRate: v })} format={(v) => v.toFixed(1)} />
+          <Slider label="Drain rate" hint="Mass drained per second by each attached scout."
+            min={0.1} max={5} step={0.1} value={enemyConfig.drainRate}
+            onChange={(v) => onEnemyChange({ drainRate: v })} format={(v) => v.toFixed(1) + "/s"} />
+          <Slider label="Steer force" hint="How hard attached scouts push their host around."
+            min={0} max={2} step={0.1} value={enemyConfig.steerForce}
+            onChange={(v) => onEnemyChange({ steerForce: v })} format={(v) => v.toFixed(1)} />
+          <Slider label="Convert threshold" hint="When a host drops below this fraction of its original mass, it becomes infected."
+            min={0.05} max={0.9} step={0.05} value={enemyConfig.convertThreshold}
+            onChange={(v) => onEnemyChange({ convertThreshold: v })} format={(v) => Math.round(v * 100) + "%"} />
+          <Slider label="Boss rate" hint="Waves between boss spawns. 0 disables bosses."
+            min={0} max={10} step={1} value={enemyConfig.bossRate}
+            onChange={(v) => onEnemyChange({ bossRate: v })} format={(v) => v.toFixed(0)} />
+          <Toggle label="Infection spread" checked={enemyConfig.infectionSpread} onChange={(v) => onEnemyChange({ infectionSpread: v })} />
+          </>}
+
           <button
             onClick={onReset}
             className="flex w-full items-center justify-center gap-2 rounded-2xl border px-3 py-2 transition-colors hover:bg-white/5"
@@ -216,7 +277,7 @@ export function DebugPanel({
           </button>
 
           <p className="text-[11px] leading-relaxed" style={{ color: "var(--orbis-text-muted)" }}>
-            Click to select. Click another to attempt merge. Right-click selected to split. Press 1–5 to switch tabs.
+            Click to select. Click another to attempt merge. Right-click selected to split. Press 1–6 to switch tabs.
           </p>
         </div>
       )}
