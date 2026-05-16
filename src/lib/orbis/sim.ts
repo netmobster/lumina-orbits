@@ -16,6 +16,7 @@ export function makeCircle(opts: Partial<Circle> & { mass: number; x: number; y:
     color: { core: color.core, shadow: color.shadow },
     flashUntil: opts.flashUntil ?? 0,
     stickyWith: new Set<number>(),
+    trail: [],
   };
 }
 
@@ -58,7 +59,7 @@ export function spawnFromEdge(w: number, h: number): Circle {
 }
 
 const MIN_DIST = 4;
-const MAX_FORCE = 800;
+const TRAIL_MAX = 22;
 
 export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h: number): Circle[] {
   const n = circles.length;
@@ -76,7 +77,7 @@ export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h
       const d2 = Math.max(dx * dx + dy * dy, MIN_DIST * MIN_DIST);
       const d = Math.sqrt(d2);
       let f = (cfg.G * a.mass * b.mass) / d2;
-      if (f > MAX_FORCE) f = MAX_FORCE;
+      if (f > cfg.maxForce) f = cfg.maxForce;
       const fx = (f * dx) / d;
       const fy = (f * dy) / d;
       a.vx += (fx / a.mass) * dt;
@@ -94,6 +95,8 @@ export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h
     c.vy *= dampPerFrame;
     c.x += c.vx * dt;
     c.y += c.vy * dt;
+    c.trail.push({ x: c.x, y: c.y });
+    if (c.trail.length > TRAIL_MAX) c.trail.shift();
     const r = radiusOf(c.mass);
     if (c.x < r) { c.x = r; c.vx = -c.vx * 0.7; }
     else if (c.x > w - r) { c.x = w - r; c.vx = -c.vx * 0.7; }
@@ -191,6 +194,7 @@ export function mergeCircles(a: Circle, b: Circle): Circle {
     color,
     flashUntil: performance.now() + 220,
     stickyWith: new Set<number>(),
+    trail: [],
   };
 }
 
