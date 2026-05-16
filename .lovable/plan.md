@@ -1,47 +1,29 @@
-# Background polish — caustics, ribbon drift, brighter aura
+# Make velocity vectors clearer
 
-## 1. `BackgroundAura.tsx` — add caustics, brighter ribbons, drift control
+## Diagnosis
 
-**Two new ribbons** (appended to existing 6):
-- Ribbon 7: bright mint `#7be3c4`, 100vw × 18vh, top 35%, left 10%, depth 22
-- Ribbon 8: pale seafoam `#a8e8d4`, 95vw × 14vh, top 60%, left 50%, depth 16
+Vector length is `velocity * 0.6`. After damping, typical speeds settle around 3–10 (the velocity floor is 3), giving arrows of only ~2–6px — invisible behind the circle's glow. The arrow color and width are fixed regardless of speed, so faster bodies don't stand out either.
 
-Each gets its own keyframe (`orbis-drift-7`, `orbis-drift-8`) with the same translate/rotate/scaleX pattern as the others.
+## Changes in `src/lib/orbis/render.ts`
 
-**Intensity remap (1–10, default 5):**
-- `baseOpacity = 0.025 * intensity` → 0.025 (at 1) to 0.25 (at 10), `~0.125` at default 5
-- `blur = 40 + intensity * 6` → 46–100px
+1. **Longer arrows with a minimum length**
+   - Replace `scale = 0.6` with `scale = 1.6`, and clamp output length to `max(minLen, …)` where `minLen = r + 14` (always pokes out past the body) and a cap of `220px` to keep huge bursts on-screen.
+   - Anchor the arrow at the body's edge rather than its center: start at `(c.x + nx*r, c.y + ny*r)` where `(nx, ny)` is the velocity unit vector. The center dot stays at `(c.x, c.y)`.
 
-**Ribbon drift control:**
-- New prop `driftSpeed: number` (1 = baseline). Each ribbon's `animation-duration` is `baseDuration / driftSpeed`, applied inline via the `animationDuration` style (the `@keyframes` definitions stay static; only durations scale).
-- Range 0–5, default 1. At 0 the animation is paused (`animationPlayState: "paused"`).
+2. **Speed-driven brightness and thickness**
+   - Map speed to a normalized factor `k = clamp(speed / 60, 0, 1)`.
+   - `alpha = 0.55 + k * 0.45` → always at least 0.55 (never fades to nothing while moving), brighter when fast.
+   - `lineWidth = 1.2 + k * 1.8` (1.2–3px).
+   - Arrowhead size scales similarly: `ah = 5 + k * 5`.
+   - Stationary case (`speed < 0.5`): skip the line/arrow but still draw the center dot in dim teal so the body is marked.
 
-**Caustics overlay:**
-- New `<svg>` layer between ribbons and vignette, full-viewport, `mixBlendMode: "screen"`, `pointerEvents: "none"`.
-- Uses `<feTurbulence type="fractalNoise" baseFrequency="0.012 0.022" numOctaves="2">` feeding a `<feDisplacementMap>` over a faint teal-to-transparent radial gradient rect, producing organic flowing light patches.
-- Animate `baseFrequency` via SMIL `<animate>` between `"0.010 0.018"` and `"0.016 0.026"` over ~14s for slow shimmer (SMIL works for SVG filter primitives).
-- Opacity tied to intensity: `0.04 + intensity * 0.025` (so 0.065 at 1, ~0.29 at 10, ~0.165 at default 5).
+3. **Subtle outer glow for legibility over bright circles**
+   - Draw each vector twice: a wider, semi-transparent dark teal stroke underneath (`rgba(10,30,28,0.55)`, `lineWidth + 2`), then the bright stroke on top. Reads cleanly over any ribbon color.
 
-## 2. `types.ts` — extend `SimConfig`
+4. **Keep composite mode `source-over`** (already correct) so vectors aren't washed out by `lighter` blending with the glow underneath.
 
-```ts
-auraIntensity: number;  // 1–10, default 5
-ribbonDrift: number;    // 0–5, default 1
-```
+## Notes
 
-Update `DEFAULT_CONFIG` accordingly. Presets untouched.
-
-## 3. `DebugPanel.tsx` — sliders
-
-- Update "Aura intensity" slider to `min={1} max={10} step={0.1}`, format `v.toFixed(1)`.
-- Add new slider "Ribbon drift" `min={0} max={5} step={0.1}`, format `v.toFixed(1) + "×"`.
-
-## 4. `OrbisCanvas.tsx` — pass new prop
-
-Pass `intensity={configState.auraIntensity}` and `driftSpeed={configState.ribbonDrift}` to `<BackgroundAura />`.
-
-## Technical notes
-
-- Driving `animation-duration` per-element via inline `style` is reactive — React rewriting the style attribute restarts the animation seamlessly because the keyframes name is unchanged.
-- `mixBlendMode: "screen"` on the caustics + ribbons stays additive over the dark `--orbis-bg`, so brightening intensity actually shows up. Vignette stays normal-blend on top so edges still feel deep.
-- SMIL animation of `baseFrequency` is widely supported in Chromium/Safari/Firefox and avoids needing a JS animation loop for the caustics shimmer.
+- No new props, no debug-panel changes needed — the toggle already exists.
+- Color stays teal (`rgb(120,255,220)`) so it ties to the accent.
+- The arrow now visibly grows/brightens with speed, so users can read momentum at a glance.
