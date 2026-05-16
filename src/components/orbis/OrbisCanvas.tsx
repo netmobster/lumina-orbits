@@ -195,6 +195,8 @@ export function OrbisCanvas() {
     circlesRef.current = seedCircles(sizeRef.current.w, sizeRef.current.h, configRef.current);
     selectedRef.current = null;
     spawnAccRef.current = 0;
+    const tctx = trailCtxRef.current;
+    if (tctx) tctx.clearRect(0, 0, sizeRef.current.w, sizeRef.current.h);
   };
 
   const handlePreset = (p: Preset) => {
