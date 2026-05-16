@@ -26,11 +26,11 @@ export type SimConfig = {
 };
 
 export const DEFAULT_CONFIG: SimConfig = {
-  G: 0.15,
-  damping: 0.999,
+  G: 0.35,
+  damping: 0.9995,
   mergeThreshold: 30,
   spawnRate: 15,
-  maxForce: 80,
+  maxForce: 120,
 };
 
 export const radiusOf = (mass: number) => Math.sqrt(mass) * 4;
@@ -38,7 +38,7 @@ export const radiusOf = (mass: number) => Math.sqrt(mass) * 4;
 export type Preset = "drift" | "orbit" | "spiral";
 
 export const PRESETS: Record<Preset, Partial<SimConfig>> = {
-  drift:  { G: 0.06, damping: 0.997, mergeThreshold: 60, maxForce: 40 },
-  orbit:  { G: 0.18, damping: 0.999, mergeThreshold: 40, maxForce: 80 },
-  spiral: { G: 0.32, damping: 0.995, mergeThreshold: 30, maxForce: 140 },
+  drift:  { G: 0.15, damping: 0.9998, mergeThreshold: 50, maxForce: 60 },
+  orbit:  { G: 0.35, damping: 0.9995, mergeThreshold: 30, maxForce: 120 },
+  spiral: { G: 0.55, damping: 0.999,  mergeThreshold: 20, maxForce: 200 },
 };

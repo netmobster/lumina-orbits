@@ -20,7 +20,7 @@ export function makeCircle(opts: Partial<Circle> & { mass: number; x: number; y:
   };
 }
 
-export function seedCircles(w: number, h: number): Circle[] {
+export function seedCircles(w: number, h: number, cfg: SimConfig): Circle[] {
   const n = 8 + Math.floor(Math.random() * 5);
   const out: Circle[] = [];
   for (let i = 0; i < n; i++) {
@@ -29,11 +29,23 @@ export function seedCircles(w: number, h: number): Circle[] {
       makeCircle({
         x: 80 + Math.random() * (w - 160),
         y: 80 + Math.random() * (h - 160),
-        vx: (Math.random() - 0.5) * 20,
-        vy: (Math.random() - 0.5) * 20,
+        vx: 0,
+        vy: 0,
         mass,
       }),
     );
+  }
+  // Give each circle velocity perpendicular to its direction from center
+  const cx = w / 2, cy = h / 2;
+  for (const c of out) {
+    const dx = c.x - cx, dy = c.y - cy;
+    const dist = Math.hypot(dx, dy) || 1;
+    const orbitalSpeed = Math.sqrt((cfg.G * 30 * 8) / dist) * 60;
+    const perpX = -dy / dist;
+    const perpY = dx / dist;
+    const dir = Math.random() > 0.5 ? 1 : -1;
+    c.vx = perpX * orbitalSpeed * dir + (Math.random() - 0.5) * 5;
+    c.vy = perpY * orbitalSpeed * dir + (Math.random() - 0.5) * 5;
   }
   return out;
 }
