@@ -396,7 +396,7 @@ function HelpOverlay({ open, onClose }: { open: boolean; onClose: () => void }) 
   const rows: [string, string][] = [
     ["Space", "Pause / play simulation"],
     ["R", "Reset — reseed circles"],
-    ["1 – 5", "Switch debug panel tab (Time, Planets, Background, Visuals, Experimental)"],
+    ["1 – 6", "Switch debug panel tab (Time, Planets, Background, Visuals, Experimental, Radioactive)"],
     ["? / H", "Toggle this help"],
     ["Esc", "Close help"],
     ["Click", "Select a circle"],
