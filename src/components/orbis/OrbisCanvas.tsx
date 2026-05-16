@@ -113,6 +113,8 @@ export function OrbisCanvas() {
         const ecfg = enemyConfigRef.current;
         if (ecfg.enabled) {
           waveAccRef.current += realDt;
+          // if wave rate was just shortened in the panel, don't sit on a stale long timer
+          if (waveAccRef.current > ecfg.waveRate) waveAccRef.current = ecfg.waveRate;
           if (waveAccRef.current >= ecfg.waveRate) {
             waveAccRef.current = 0;
             wavesFiredRef.current++;

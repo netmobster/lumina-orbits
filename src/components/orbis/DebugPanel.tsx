@@ -241,9 +241,9 @@ export function DebugPanel({
 
           {tab === "radio" && <>
           <Toggle label="Enemies" checked={enemyConfig.enabled} onChange={(v) => onEnemyChange({ enabled: v })} />
-          <Slider label="Wave rate (s)" hint="Seconds between enemy waves. Lower = relentless."
-            min={5} max={60} step={1} value={enemyConfig.waveRate}
-            onChange={(v) => onEnemyChange({ waveRate: v })} format={(v) => v.toFixed(0)} />
+          <Slider label="Wave rate (s)" hint="Seconds between enemy waves. Lower = relentless (min 1.5s = ~3× faster spawning)."
+            min={1.5} max={60} step={0.5} value={enemyConfig.waveRate}
+            onChange={(v) => onEnemyChange({ waveRate: v })} format={(v) => v.toFixed(1) + "s"} />
           <Slider label="Swarm size" hint="Scouts spawned per wave."
             min={1} max={20} step={1} value={enemyConfig.swarmSize}
             onChange={(v) => onEnemyChange({ swarmSize: v })} format={(v) => v.toFixed(0)} />

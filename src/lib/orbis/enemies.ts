@@ -119,11 +119,11 @@ export function stepEnemies(
   const byId = new Map<number, Circle>();
   for (const c of circles) byId.set(c.id, c);
 
-  // pick lowest-mass non-infected circle (fallback: nearest non-infected to enemy)
+  // candidates for per-enemy target scoring
   const nonInfected = circles.filter((c) => !c.infected);
-  const lowest = nonInfected.length
-    ? nonInfected.reduce((a, b) => (a.mass <= b.mass ? a : b))
-    : null;
+  // proximity weight: small circles still preferred, but a nearby medium one
+  // beats a faraway tiny one — keeps swarms from dogpiling a single target.
+  const PROX_WEIGHT = 0.05;
 
   for (const e of enemies) {
     if (e.isBoss) {
@@ -195,8 +195,16 @@ export function stepEnemies(
       continue;
     }
 
-    // pick target — simple: lowest mass non-infected
-    let target: Circle | null = lowest;
+    // pick target — per-enemy score combining mass and distance
+    let target: Circle | null = null;
+    if (nonInfected.length) {
+      let bestScore = Infinity;
+      for (const c of nonInfected) {
+        const d = Math.hypot(c.x - e.x, c.y - e.y);
+        const score = c.mass + PROX_WEIGHT * d;
+        if (score < bestScore) { bestScore = score; target = c; }
+      }
+    }
     if (!target && circles.length) {
       // fallback: nearest non-infected, else nearest anything
       let best: Circle | null = null;
