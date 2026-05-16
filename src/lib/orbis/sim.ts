@@ -31,7 +31,7 @@ export function seedCircles(w: number, h: number, cfg: SimConfig): Circle[] {
         y: 80 + Math.random() * (h - 160),
         vx: 0,
         vy: 0,
-        mass,
+        mass: 3 + Math.random() * 55,
       }),
     );
   }
@@ -105,12 +105,18 @@ export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h
     const c = circles[i];
     c.vx *= dampPerFrame;
     c.vy *= dampPerFrame;
-    // minimum velocity floor — prevents circles from dying
+    // soft random kick when nearly still — keeps things chaotic
     const speed = Math.hypot(c.vx, c.vy);
-    if (speed < 3 && speed > 0) {
-      const scale = 3 / speed;
-      c.vx *= scale;
-      c.vy *= scale;
+    if (speed < 2) {
+      c.vx += (Math.random() - 0.5) * 8;
+      c.vy += (Math.random() - 0.5) * 8;
+    }
+    // mass-based speed cap — big lumbers slow, small zips fast
+    const maxSpeed = 80 / Math.sqrt(c.mass);
+    const spd = Math.hypot(c.vx, c.vy);
+    if (spd > maxSpeed) {
+      c.vx = (c.vx / spd) * maxSpeed;
+      c.vy = (c.vy / spd) * maxSpeed;
     }
     c.x += c.vx * dt;
     c.y += c.vy * dt;
