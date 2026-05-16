@@ -13,8 +13,6 @@ type Props = {
   activePreset: Preset | null;
   speed: number;
   onSpeed: (s: number) => void;
-  showVectors: boolean;
-  onToggleVectors: (v: boolean) => void;
   showTrails: boolean;
   onToggleTrails: (v: boolean) => void;
 };
@@ -22,7 +20,6 @@ type Props = {
 export function DebugPanel({
   config, onChange, fps, count, avgSpeed, onReset,
   onPreset, activePreset, speed, onSpeed,
-  showVectors, onToggleVectors,
   showTrails, onToggleTrails,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
@@ -124,11 +121,14 @@ export function DebugPanel({
             onChange={(v) => onChange({ auraIntensity: v })} format={(v) => v.toFixed(1)} />
           <Slider label="Ribbon drift" min={0} max={5} step={0.1} value={config.ribbonDrift}
             onChange={(v) => onChange({ ribbonDrift: v })} format={(v) => v.toFixed(1) + "×"} />
+          <Slider label="Trail length" min={10} max={2000} step={10} value={config.trailLength}
+            onChange={(v) => onChange({ trailLength: v })} format={(v) => v.toFixed(0)} />
+          <Slider label="Trail visibility" min={1} max={200} step={1} value={config.trailOpacity}
+            onChange={(v) => onChange({ trailOpacity: v })} format={(v) => v.toFixed(0) + "×"} />
 
           {/* Toggles */}
           <div className="space-y-1.5">
             <Toggle label="Motion trails" checked={showTrails} onChange={onToggleTrails} />
-            <Toggle label="Velocity vectors" checked={showVectors} onChange={onToggleVectors} />
           </div>
 
           <button

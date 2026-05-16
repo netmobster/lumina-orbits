@@ -14,7 +14,6 @@ export function OrbisCanvas() {
   const sizeRef = useRef({ w: 0, h: 0 });
   const spawnAccRef = useRef(0);
   const speedRef = useRef(1);
-  const showVectorsRef = useRef(false);
   const showTrailsRef = useRef(true);
 
   const [configState, setConfigState] = useState<SimConfig>({ ...DEFAULT_CONFIG, ...PRESETS.orbit });
@@ -23,7 +22,6 @@ export function OrbisCanvas() {
   const [count, setCount] = useState(0);
   const [avgSpeed, setAvgSpeed] = useState(0);
   const [speed, setSpeed] = useState(1);
-  const [showVectors, setShowVectors] = useState(false);
   const [showTrails, setShowTrails] = useState(true);
   const [loading, setLoading] = useState(true);
   const [, force] = useState(0);
@@ -77,9 +75,9 @@ export function OrbisCanvas() {
         circlesRef.current = step(circlesRef.current, configRef.current, dt, sizeRef.current.w, sizeRef.current.h);
       }
       render(ctx, circlesRef.current, selectedRef.current, sizeRef.current.w, sizeRef.current.h, now, {
-        showVectors: showVectorsRef.current,
+        showVectors: false,
         showTrails: showTrailsRef.current,
-      });
+      }, configRef.current.trailOpacity);
 
       // fps update ~4Hz
       fpsAcc += realDt; fpsFrames++; fpsTimer += realDt;
@@ -192,11 +190,6 @@ export function OrbisCanvas() {
     setSpeed(s);
   };
 
-  const handleToggleVectors = (v: boolean) => {
-    showVectorsRef.current = v;
-    setShowVectors(v);
-  };
-
   const handleToggleTrails = (v: boolean) => {
     showTrailsRef.current = v;
     setShowTrails(v);
@@ -218,8 +211,6 @@ export function OrbisCanvas() {
         activePreset={activePreset}
         speed={speed}
         onSpeed={handleSpeed}
-        showVectors={showVectors}
-        onToggleVectors={handleToggleVectors}
         showTrails={showTrails}
         onToggleTrails={handleToggleTrails}
       />
