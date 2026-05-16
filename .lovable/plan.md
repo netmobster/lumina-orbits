@@ -1,64 +1,72 @@
-# Make 50–100 circles feel as smooth as 10
+# Add an enemy ("Radioactive") system to ORBIS
 
-## The bottleneck
+A separate entity type that hunts, latches, drains, and can convert friendly circles. Visually wrong on purpose — sharp shapes, sickly red/green, no gravity. Surfaced through a sixth debug panel tab.
 
-The trail loop dominates the frame. With `trailLength=1400` (CHAOS default) and 20 circles, every frame can stroke ~20 × 1400 × 2 = **56,000 line segments**, each with its own `beginPath` / `stroke` and an `hexA()` string parse — that's the cliff users hit around 20 bodies. Forces (`O(n²)`) and DOM react state are minor by comparison until ~100 bodies.
+## What the user sees
 
-## Plan — keep the look, kill the cost
+- A new **Radioactive** tab in the debug panel (sixth icon, sharp red-tinted star, slightly glowing). Keyboard shortcut **6** opens it. The existing Experimental tab keeps its current Radiation icon but gets a small star badge to distinguish it from the new tab.
+- The tab is OFF by default. Toggling **Enemies ON** starts wave spawning.
+- Scouts appear from random edges as small red 4-point stars and fly straight at the smallest friendly circle, ignoring gravity. In transit they leave a **short, sharp, bright-red trail (5–8 segments max)** — visibly more knife-like than the soft aquatic tails of friendlies. Once latched, the trail stops; the spike pulses on the host instead.
+- On contact they latch on as spikes around the host circle, slowly draining its mass and nudging it around.
+- If a circle is drained past the convert threshold, it flashes and turns infected red. With **infection spread** on, infected circles pulse and redirect nearby scouts toward neighbors.
+- Every N waves (boss rate), a larger enemy spawns, orbits the biggest friendly circle, and fires drain pulses every 3 s instead of latching.
+- If total friendly mass drops below 15% of starting mass → **"The system collapsed."** overlay with a Reset button.
 
-### 1. Persistent trail buffer (biggest single win, ~10×)
+## Files added
 
-Replace the per-segment redraw with an **offscreen canvas that fades in place**.
+- `src/lib/orbis/enemies.ts` — `Enemy` and `EnemyConfig` types exactly as specified, plus `DEFAULT_ENEMY_CONFIG`, `spawnEnemyWave(w, h, swarmSize)`, `spawnBoss(w, h)`, and `stepEnemies(enemies, circles, cfg, dt, w, h)` that does target selection, pathfinding, latching, drain, steer, conversion, infection-spread pulses, and boss pulse fire. Returns updated enemies plus any newly-spawned scout (from infection pulses) and reports converted circle ids so the host loop can recolor them. Each `Enemy` also carries a tiny `trail: {x,y}[]` ring buffer (cap 8) populated only while unattached.
 
-Each frame in `render.ts`:
-- Apply a fade pass on the trail buffer (`globalCompositeOperation = "destination-out"`, fill black with alpha derived from `tailFadeRate`). This naturally produces the smooth fade curve the slider controls — no per-point math.
-- For each circle, draw ONE short segment from previous → current position into the buffer: a wide soft halo stroke + a thin core stroke (both still `"lighter"`, both using `glowSoftness` for width). That's **2 strokes per circle per frame** instead of 2 strokes × hundreds of trail points.
-- Blit the buffer onto the main canvas.
+## Files changed
 
-Visual feel preserved:
-- Long, glowing, aquatic tails (fade rate controls how far back they reach instead of a hard length cap).
-- Speed-scaled width/alpha applied to the single drawn segment (fast = wider/brighter, slow = thin/dim) — same signal users see today.
-- `glowSoftness` still controls halo width.
-- `trailOpacity` still scales drawn alpha.
+- `src/lib/orbis/types.ts`
+  - Add `infected?: boolean`, `originalMass?: number`, `infectionFlashUntil?: number` to `Circle`.
+  - No change to `SimConfig` — enemy state lives outside it.
+- `src/lib/orbis/sim.ts`
+  - `makeCircle` records `originalMass`.
+  - Friendly circle–circle physics unchanged (enemies are **not** part of `step`).
+- `src/lib/orbis/render.ts`
+  - New helpers `drawScout` (sharp 4-point star, core `#8b1a1a`, screen-composited green `#1a3d0a` glow, plus a **short sharp trail**: stroke the scout's own 5–8 point ring buffer as straight segments with linearly fading alpha, color `#ff3a3a` — brighter and harder than attached/spike red, no blur halo), `drawAttachedSpike` (drawn radially at host's `attachAngle`, intensity scales with host's attached drain rate, dimmer/darker red than in-transit scouts), and `drawInfectionPulse` (expanding ripple ring).
+  - Infected circles lerp body color toward `#6b1a1a` based on `mass / originalMass`.
+  - Accepts new `enemies` arg; nothing changes when array is empty (preserves current visuals exactly).
+  - Scout trails render on the main canvas (not the friendly trail buffer) so they fade fast and don't bleed into the aquatic glow pipeline.
+- `src/components/orbis/OrbisCanvas.tsx`
+  - `enemiesRef: Enemy[]`, `enemyConfigRef: EnemyConfig`, `enemyConfigState`, `waveAccRef`, `wavesFiredRef`, `startingMassRef`, `gameOver` state.
+  - Main loop: tick `stepEnemies`, integrate wave spawning (`waveRate` seconds), boss every `bossRate` waves, and game-over check (`total friendly mass < 0.15 × startingMass`).
+  - Reset clears enemies, recomputes `startingMass`, clears game-over.
+  - Passes enemies + config into `render` and `DebugPanel`.
+  - Adds a `GameOverOverlay` (centered, blood-tinted glass, "The system collapsed.", Reset button).
+- `src/components/orbis/DebugPanel.tsx`
+  - `Tab` adds `"radio"`; `tabs` array gets a 6th entry with a sharp star icon (`Star` from lucide) tinted red.
+  - The existing `xl` tab keeps its `Radiation` icon but renders a small red star dot overlay so the two tabs are visually distinct, addressing the "existing XL tab gets a new star icon" note.
+  - Keyboard shortcut map extended to `1–6`.
+  - New props `enemyConfig`, `onEnemyChange`.
+  - When `tab === "radio"`, the panel wrapper switches to `background: rgba(60, 8, 8, 0.75)`, a red border accent, and an inline override `--orbis-accent: #d94a4a` so all sliders/toggles inside that tab pick up red without touching other tabs.
+  - Sliders inside `radio` tab (all with `hint` text):
+    - Enemies on/off toggle (default OFF)
+    - Wave rate 5–60 s, step 1, default 20
+    - Swarm size 1–20, step 1, default 5
+    - Scout speed 0.1–5, step 0.1, default 1.0
+    - Attach rate 0.1–3, step 0.1, default 1.0
+    - Drain rate 0.1–5, step 0.1, default 1.0
+    - Steer force 0–2, step 0.1, default 0.5
+    - Convert threshold 5–90 %, step 5, default 20
+    - Boss rate 0–10, step 1, default 5 (0 disables)
+    - Infection spread toggle (default ON)
+  - Help overlay updated to mention "6 — Radioactive" and the new game-over reset.
 
-`trailLength` becomes a derived value of `tailFadeRate` (we can keep the slider and map it to a min fade clamp, so the user still controls "how long do trails persist"). The per-circle `c.trail[]` array can be dropped — saves memory and the per-frame `push/shift` work in `sim.ts`.
+## Technical notes (for me to keep straight)
 
-### 2. Cache colors once
+- **Enemies are not in `step()`** — no G, no `maxForce`, no damping, no merge. They have their own pure-intent integrator in `enemies.ts`.
+- **Target selection (kept simple)**: pick the friendly circle with the lowest `mass` that is not yet infected. No look-ahead about who's already being drained — over-engineering would cause scouts to ignore obviously dying circles. Falls back to nearest non-infected if every circle is infected.
+- Attached scouts store `attachAngle` and drift it by ~0.4 rad/s. Position = `host.x + cos(angle)*(host.radius+2)`.
+- In-transit scouts push the current position onto an 8-entry ring buffer each frame; the buffer is cleared on latch so the trail snaps off cleanly.
+- Conversion sets `circle.infected = true`, sets `flashUntil = now + 350`, and color lerps in renderer using `mass/originalMass`. Once infected, the circle stops being a valid target and counts as enemy territory; for `infectionSpread`, every ~2 s it emits a pulse that retargets the nearest 1–2 unattached scouts to a non-infected neighbor.
+- Boss: mass 15–25, orbits biggest friendly at radius `bigR * 2.5`, every 3 s emits a drain pulse that subtracts `drainRate * 3` from up to 3 nearest friendlies inside a radius.
+- All enemy-driven mass changes call a small `recomputeRadius(c)` (since `radius` is cached on `Circle`).
+- Game-over halts the loop's `step` and `stepEnemies` calls but keeps rendering, so the final frame stays visible behind the overlay.
 
-Each circle gets a precomputed `rgbPrefix: string` (`"120,200,180"`) set when the circle is created or merged. `hexA(c.color.core, a)` becomes `` `rgba(${c.rgbPrefix},${a})` `` — drops hundreds of `parseInt` calls per frame.
+## Out of scope
 
-### 3. Cache radius
-
-`radiusOf(c.mass)` is called 4–6 times per circle per frame. Store `c.radius` and only recompute on mass change (merge/split/create). Trivial change in `sim.ts` + `makeCircle`.
-
-### 4. Index sticky lookups
-
-`circles.find((x) => x.id === otherId)` inside the sticky-arc loop is `O(n²)`. Build a `Map<id, Circle>` once per frame in `render`.
-
-### 5. Adaptive quality (optional safety net)
-
-When `count > 60` OR measured fps drops below 45, automatically:
-- halve halo stroke width contribution,
-- skip the radial-gradient body fill for the smallest 30% of circles (use flat fill).
-Reverts when load drops. Keeps the door open for 200+ bodies.
-
-### 6. Small fixes
-
-- Skip the body radial-gradient creation when `r < 3` (use flat fill).
-- Use `ctx.fillStyle = ...; ctx.fill()` without recreating gradients for tiny far-away circles.
-- Read viewport DPR cap is already at 2 — good. Leave it.
-
-## Files touched
-
-- `src/lib/orbis/render.ts` — buffer-based trail pipeline, color cache usage, map lookup, adaptive quality.
-- `src/lib/orbis/sim.ts` — drop `trail[]` push/shift; cache `radius`; populate `rgbPrefix` on create/merge.
-- `src/lib/orbis/types.ts` — add `radius: number` and `rgbPrefix: string` to `Circle`.
-- `src/components/orbis/OrbisCanvas.tsx` — allocate the offscreen trail buffer alongside the main canvas; reset it on resize.
-
-No UI changes. Slider semantics preserved.
-
-## Expected outcome
-
-- 20 circles with CHAOS visuals: 60 fps comfortably (was ~25–30).
-- 60+ circles still interactive (was a slideshow).
-- Same aquatic glow, same fade, same speed-based brightness.
+- No new music/SFX.
+- No mass-conservation accounting from drain (drained mass simply disappears, matching the spec).
+- No persistence of enemy state across resets.
