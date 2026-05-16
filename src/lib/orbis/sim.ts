@@ -20,6 +20,7 @@ export function makeCircle(opts: Partial<Circle> & { mass: number; x: number; y:
     py: opts.y,
     radius: radiusOf(opts.mass),
     rgbPrefix: rgbPrefixOf(color.core),
+    originalMass: opts.mass,
   };
 }
 
@@ -239,6 +240,7 @@ export function mergeCircles(a: Circle, b: Circle): Circle {
     py: y,
     radius: radiusOf(newMass),
     rgbPrefix: rgbPrefixOf(color.core),
+    originalMass: newMass,
   };
 }
 

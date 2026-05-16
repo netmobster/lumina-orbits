@@ -21,6 +21,12 @@ export type Circle = {
   radius: number;
   /** cached "r,g,b" prefix for rgba() string building */
   rgbPrefix: string;
+  /** enemy system: drained past threshold */
+  infected?: boolean;
+  /** enemy system: mass when first created (for convert ratio) */
+  originalMass?: number;
+  /** enemy system: brief white flash on conversion */
+  infectionFlashUntil?: number;
 };
 
 export type SimConfig = {

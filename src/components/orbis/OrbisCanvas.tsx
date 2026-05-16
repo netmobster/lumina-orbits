@@ -5,6 +5,15 @@ import { LoadingOrb } from "./LoadingOrb";
 import { findCircleAt, seedCircles, spawnFromEdge, splitCircle, step, mergeCircles } from "@/lib/orbis/sim";
 import { render } from "@/lib/orbis/render";
 import { DEFAULT_CONFIG, PRESETS, type Circle, type Preset, type SimConfig } from "@/lib/orbis/types";
+import {
+  DEFAULT_ENEMY_CONFIG,
+  spawnEnemyWave,
+  spawnBoss,
+  stepEnemies,
+  totalFriendlyMass,
+  type Enemy,
+  type EnemyConfig,
+} from "@/lib/orbis/enemies";
 
 export function OrbisCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -17,8 +26,17 @@ export function OrbisCanvas() {
   const showTrailsRef = useRef(true);
   const trailCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const trailCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const enemiesRef = useRef<Enemy[]>([]);
+  const enemyConfigRef = useRef<EnemyConfig>({ ...DEFAULT_ENEMY_CONFIG });
+  const waveAccRef = useRef(0);
+  const wavesFiredRef = useRef(0);
+  const startingMassRef = useRef(0);
+  const infectionPulseAccRef = useRef({ t: 0 });
+  const pulsesRef = useRef<{ x: number; y: number; bornAt: number }[]>([]);
+  const gameOverRef = useRef(false);
 
   const [configState, setConfigState] = useState<SimConfig>({ ...DEFAULT_CONFIG, ...PRESETS.orbit });
+  const [enemyConfigState, setEnemyConfigState] = useState<EnemyConfig>({ ...DEFAULT_ENEMY_CONFIG });
   const [activePreset, setActivePreset] = useState<Preset | null>("orbit");
   const [fps, setFps] = useState(0);
   const [count, setCount] = useState(0);
@@ -27,6 +45,7 @@ export function OrbisCanvas() {
   const [showTrails, setShowTrails] = useState(true);
   const [loading, setLoading] = useState(true);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [gameOver, setGameOver] = useState(false);
   const [, force] = useState(0);
 
   // setup
@@ -67,6 +86,7 @@ export function OrbisCanvas() {
     window.addEventListener("resize", resize);
 
     circlesRef.current = seedCircles(sizeRef.current.w, sizeRef.current.h, configRef.current);
+    startingMassRef.current = circlesRef.current.reduce((s, c) => s + c.mass, 0);
 
     let raf = 0;
     let last = performance.now();
@@ -86,8 +106,46 @@ export function OrbisCanvas() {
         );
       }
 
-      if (dt > 0) {
+      if (dt > 0 && !gameOverRef.current) {
         circlesRef.current = step(circlesRef.current, configRef.current, dt, sizeRef.current.w, sizeRef.current.h);
+
+        // enemy waves
+        const ecfg = enemyConfigRef.current;
+        if (ecfg.enabled) {
+          waveAccRef.current += realDt;
+          if (waveAccRef.current >= ecfg.waveRate) {
+            waveAccRef.current = 0;
+            wavesFiredRef.current++;
+            const newOnes = spawnEnemyWave(sizeRef.current.w, sizeRef.current.h, ecfg.swarmSize);
+            enemiesRef.current = enemiesRef.current.concat(newOnes);
+            if (ecfg.bossRate > 0 && wavesFiredRef.current % ecfg.bossRate === 0) {
+              enemiesRef.current = enemiesRef.current.concat(spawnBoss(sizeRef.current.w, sizeRef.current.h));
+            }
+          }
+          const result = stepEnemies(
+            enemiesRef.current,
+            circlesRef.current,
+            ecfg,
+            dt,
+            sizeRef.current.w,
+            sizeRef.current.h,
+            now,
+            infectionPulseAccRef.current,
+          );
+          enemiesRef.current = result.enemies;
+          // keep pulses for ~1.2s
+          pulsesRef.current = pulsesRef.current
+            .concat(result.pulses)
+            .filter((p) => now - p.bornAt < 1200);
+          // drop tiny circles
+          circlesRef.current = circlesRef.current.filter((c) => c.mass >= 0.5);
+
+          // game-over check
+          if (startingMassRef.current > 0 && totalFriendlyMass(circlesRef.current) < startingMassRef.current * 0.15) {
+            gameOverRef.current = true;
+            setGameOver(true);
+          }
+        }
       }
       render(
         ctx,
@@ -96,7 +154,13 @@ export function OrbisCanvas() {
         sizeRef.current.w,
         sizeRef.current.h,
         now,
-        { showTrails: showTrailsRef.current, trailCtx: trailCtxRef.current, trailCanvas: trailCanvasRef.current },
+        {
+          showTrails: showTrailsRef.current,
+          trailCtx: trailCtxRef.current,
+          trailCanvas: trailCanvasRef.current,
+          enemies: enemiesRef.current,
+          pulses: pulsesRef.current,
+        },
         configRef.current.trailOpacity,
         configRef.current.glowSoftness,
         configRef.current.tailFadeRate,
@@ -196,6 +260,14 @@ export function OrbisCanvas() {
     circlesRef.current = seedCircles(sizeRef.current.w, sizeRef.current.h, configRef.current);
     selectedRef.current = null;
     spawnAccRef.current = 0;
+    enemiesRef.current = [];
+    pulsesRef.current = [];
+    waveAccRef.current = 0;
+    wavesFiredRef.current = 0;
+    infectionPulseAccRef.current.t = 0;
+    startingMassRef.current = circlesRef.current.reduce((s, c) => s + c.mass, 0);
+    gameOverRef.current = false;
+    setGameOver(false);
     const tctx = trailCtxRef.current;
     if (tctx) tctx.clearRect(0, 0, sizeRef.current.w, sizeRef.current.h);
   };
@@ -244,6 +316,11 @@ export function OrbisCanvas() {
     setShowTrails(v);
   };
 
+  const handleEnemyChange = (patch: Partial<EnemyConfig>) => {
+    enemyConfigRef.current = { ...enemyConfigRef.current, ...patch };
+    setEnemyConfigState((s) => ({ ...s, ...patch }));
+  };
+
   return (
     <>
       <BackgroundAura intensity={configState.auraIntensity} driftSpeed={configState.ribbonDrift} />
@@ -262,8 +339,39 @@ export function OrbisCanvas() {
         onSpeed={handleSpeed}
         showTrails={showTrails}
         onToggleTrails={handleToggleTrails}
+        enemyConfig={enemyConfigState}
+        onEnemyChange={handleEnemyChange}
       />
       <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
+      {gameOver && (
+        <div
+          className="fixed inset-0 z-30 flex items-center justify-center p-6"
+          style={{ background: "rgba(30, 4, 4, 0.6)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+        >
+          <div
+            className="rounded-3xl border p-8 text-center"
+            style={{
+              background: "rgba(60, 8, 8, 0.85)",
+              borderColor: "rgba(217, 74, 74, 0.5)",
+              color: "#f0d0d0",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              minWidth: 320,
+            }}
+          >
+            <div className="mb-2 text-[11px] uppercase tracking-[0.3em]" style={{ color: "#d94a4a" }}>
+              Radioactive
+            </div>
+            <div className="mb-6 text-[18px]">The system collapsed.</div>
+            <button
+              onClick={handleReset}
+              className="rounded-2xl border px-5 py-2 text-[13px] transition-colors hover:bg-white/5"
+              style={{ borderColor: "#d94a4a", color: "#f0d0d0" }}
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      )}
       <button
         onClick={() => setHelpOpen(true)}
         title="Keyboard shortcuts (?)"
@@ -288,7 +396,7 @@ function HelpOverlay({ open, onClose }: { open: boolean; onClose: () => void }) 
   const rows: [string, string][] = [
     ["Space", "Pause / play simulation"],
     ["R", "Reset — reseed circles"],
-    ["1 – 5", "Switch debug panel tab (Time, Planets, Background, Visuals, Experimental)"],
+    ["1 – 6", "Switch debug panel tab (Time, Planets, Background, Visuals, Experimental, Radioactive)"],
     ["? / H", "Toggle this help"],
     ["Esc", "Close help"],
     ["Click", "Select a circle"],
