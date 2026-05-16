@@ -70,7 +70,7 @@ export function spawnFromEdge(w: number, h: number): Circle {
 }
 
 const MIN_DIST = 4;
-const TRAIL_MAX = 22;
+const TRAIL_MAX = 110;
 
 export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h: number): Circle[] {
   const n = circles.length;
