@@ -15,6 +15,8 @@ export function OrbisCanvas() {
   const spawnAccRef = useRef(0);
   const speedRef = useRef(1);
   const showTrailsRef = useRef(true);
+  const trailCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const trailCtxRef = useRef<CanvasRenderingContext2D | null>(null);
 
   const [configState, setConfigState] = useState<SimConfig>({ ...DEFAULT_CONFIG, ...PRESETS.orbit });
   const [activePreset, setActivePreset] = useState<Preset | null>("orbit");
@@ -33,6 +35,12 @@ export function OrbisCanvas() {
     const ctx = canvas.getContext("2d")!;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
+    // offscreen trail buffer
+    const trailCanvas = document.createElement("canvas");
+    const trailCtx = trailCanvas.getContext("2d")!;
+    trailCanvasRef.current = trailCanvas;
+    trailCtxRef.current = trailCtx;
+
     const resize = () => {
       const w = window.innerWidth;
       const h = window.innerHeight;
@@ -42,10 +50,16 @@ export function OrbisCanvas() {
       canvas.style.width = w + "px";
       canvas.style.height = h + "px";
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      trailCanvas.width = w * dpr;
+      trailCanvas.height = h * dpr;
+      trailCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      trailCtx.clearRect(0, 0, w, h);
       // clamp circles
       for (const c of circlesRef.current) {
         c.x = Math.min(Math.max(c.x, 10), w - 10);
         c.y = Math.min(Math.max(c.y, 10), h - 10);
+        c.px = c.x;
+        c.py = c.y;
       }
     };
     resize();
@@ -81,10 +95,11 @@ export function OrbisCanvas() {
         sizeRef.current.w,
         sizeRef.current.h,
         now,
-        { showVectors: false, showTrails: showTrailsRef.current },
+        { showTrails: showTrailsRef.current, trailCtx: trailCtxRef.current, trailCanvas: trailCanvasRef.current },
         configRef.current.trailOpacity,
         configRef.current.glowSoftness,
         configRef.current.tailFadeRate,
+        configRef.current.trailLength,
       );
 
       // fps update ~4Hz
