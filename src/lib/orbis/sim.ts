@@ -1,6 +1,15 @@
 import { blendColor, randomPaletteColor, rgbPrefixOf } from "./palette";
 import { Circle, SimConfig, radiusOf } from "./types";
 
+export type StepOpts = {
+  /** Multiplier applied to G this frame (default 1). */
+  gravityMultiplier?: number;
+  /** Sign on G this frame (-1 = repulsive, default 1). */
+  gravitySign?: number;
+  /** Extra invisible attractor (e.g. transient black hole). */
+  extraAttractor?: { x: number; y: number; mass: number } | null;
+};
+
 let _id = 1;
 const nextId = () => _id++;
 
@@ -75,8 +84,17 @@ export function spawnFromEdge(w: number, h: number): Circle {
 
 const MIN_DIST = 4;
 
-export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h: number): Circle[] {
+export function step(
+  circles: Circle[],
+  cfg: SimConfig,
+  dt: number,
+  w: number,
+  h: number,
+  opts: StepOpts = {},
+): Circle[] {
   const n = circles.length;
+  const gMul = (opts.gravityMultiplier ?? 1) * (opts.gravitySign ?? 1);
+  const Geff = cfg.G * gMul;
 
   // clear sticky markers each frame; re-discovered during collision pass
   for (let i = 0; i < n; i++) circles[i].stickyWith.clear();
@@ -90,14 +108,32 @@ export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h
       const dy = b.y - a.y;
       const d2 = Math.max(dx * dx + dy * dy, MIN_DIST * MIN_DIST);
       const d = Math.sqrt(d2);
-      let f = (cfg.G * a.mass * b.mass) / d2;
+      let f = (Geff * a.mass * b.mass) / d2;
       if (f > cfg.maxForce) f = cfg.maxForce;
+      else if (f < -cfg.maxForce) f = -cfg.maxForce;
       const fx = (f * dx) / d;
       const fy = (f * dy) / d;
       a.vx += (fx / a.mass) * dt;
       a.vy += (fy / a.mass) * dt;
       b.vx -= (fx / b.mass) * dt;
       b.vy -= (fy / b.mass) * dt;
+    }
+  }
+
+  // extra attractor (e.g. black hole). Always attractive regardless of opts.gravitySign.
+  if (opts.extraAttractor) {
+    const att = opts.extraAttractor;
+    const Gatt = cfg.G * (opts.gravityMultiplier ?? 1);
+    for (let i = 0; i < n; i++) {
+      const c = circles[i];
+      const dx = att.x - c.x;
+      const dy = att.y - c.y;
+      const d2 = Math.max(dx * dx + dy * dy, MIN_DIST * MIN_DIST);
+      const d = Math.sqrt(d2);
+      let f = (Gatt * att.mass * c.mass) / d2;
+      if (f > cfg.maxForce * 4) f = cfg.maxForce * 4;
+      c.vx += ((f * dx) / d / c.mass) * dt;
+      c.vy += ((f * dy) / d / c.mass) * dt;
     }
   }
 
@@ -217,7 +253,7 @@ export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h
 
 export function mergeCircles(a: Circle, b: Circle): Circle {
   const totalMass = a.mass + b.mass;
-  const newMass = totalMass * 0.9; // 10% energy loss
+  const newMass = totalMass * 0.98; // 2% energy loss — allows long-term mass growth
   const x = (a.x * a.mass + b.x * b.mass) / totalMass;
   const y = (a.y * a.mass + b.y * b.mass) / totalMass;
   // conserve momentum
@@ -266,4 +302,86 @@ export function findCircleAt(circles: Circle[], x: number, y: number): Circle | 
     if ((c.x - x) ** 2 + (c.y - y) ** 2 <= r * r * 1.4) return c;
   }
   return null;
+}
+
+/** Run sim forward by `seconds` of sim-time with fixed dt. No rendering. */
+export function fastForward(
+  circles: Circle[],
+  cfg: SimConfig,
+  seconds: number,
+  w: number,
+  h: number,
+): Circle[] {
+  const dt = 0.5;
+  const iters = Math.round(seconds / dt);
+  let cur = circles;
+  let spawnAcc = 0;
+  for (let i = 0; i < iters; i++) {
+    cur = step(cur, cfg, dt, w, h);
+    spawnAcc += dt;
+    if (spawnAcc >= cfg.spawnRate) {
+      spawnAcc = 0;
+      cur = cur.concat(spawnFromEdge(w, h));
+    }
+  }
+  return cur;
+}
+
+/** Delete the largest body and replace it with 6–10 outward fragments. */
+export function triggerSupernova(circles: Circle[]): Circle[] {
+  if (!circles.length) return circles;
+  let big = circles[0];
+  for (const c of circles) if (c.mass > big.mass) big = c;
+  if (big.mass < 3) return circles;
+  const n = 6 + Math.floor(Math.random() * 5);
+  const fragMass = (big.mass * 0.95) / n;
+  const out: Circle[] = [];
+  for (let i = 0; i < n; i++) {
+    const ang = (i / n) * Math.PI * 2 + Math.random() * 0.3;
+    const r = radiusOf(fragMass) + 2;
+    const sp = 120 + Math.random() * 80;
+    out.push(
+      makeCircle({
+        x: big.x + Math.cos(ang) * r,
+        y: big.y + Math.sin(ang) * r,
+        vx: big.vx + Math.cos(ang) * sp,
+        vy: big.vy + Math.sin(ang) * sp,
+        mass: fragMass,
+        color: big.color,
+        flashUntil: performance.now() + 400,
+      }),
+    );
+  }
+  return circles.filter((c) => c.id !== big.id).concat(out);
+}
+
+/** Spawn a single fast comet streaking across the canvas. */
+export function spawnComet(w: number, h: number): Circle {
+  const side = Math.floor(Math.random() * 4);
+  let x = 0, y = 0;
+  if (side === 0) { x = Math.random() * w; y = 10; }
+  else if (side === 1) { x = w - 10; y = Math.random() * h; }
+  else if (side === 2) { x = Math.random() * w; y = h - 10; }
+  else { x = 10; y = Math.random() * h; }
+  const tx = w / 2 + (Math.random() - 0.5) * w * 0.4;
+  const ty = h / 2 + (Math.random() - 0.5) * h * 0.4;
+  const dx = tx - x, dy = ty - y;
+  const len = Math.hypot(dx, dy) || 1;
+  const speed = 180 + Math.random() * 60;
+  return makeCircle({
+    x, y,
+    vx: (dx / len) * speed,
+    vy: (dy / len) * speed,
+    mass: 25 + Math.random() * 20,
+    flashUntil: performance.now() + 400,
+  });
+}
+
+/** Spawn one burst of small fast bodies (call multiple times for a storm). */
+export function spawnAsteroidBurst(w: number, h: number, n: number): Circle[] {
+  const out: Circle[] = [];
+  for (let i = 0; i < n; i++) out.push(spawnFromEdge(w, h));
+  // make them faster than default edge spawns
+  for (const c of out) { c.vx *= 2.5; c.vy *= 2.5; c.mass = 2 + Math.random() * 3; c.radius = radiusOf(c.mass); }
+  return out;
 }
