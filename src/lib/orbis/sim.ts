@@ -226,6 +226,9 @@ export function step(
             a.vy -= iy / a.mass;
             b.vx += ix / b.mass;
             b.vy += iy / b.mass;
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("orbis:sfx:collision"));
+            }
           }
         }
       }
