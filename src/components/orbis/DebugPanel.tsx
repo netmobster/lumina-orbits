@@ -7,6 +7,7 @@ type Props = {
   onChange: (patch: Partial<SimConfig>) => void;
   fps: number;
   count: number;
+  avgSpeed: number;
   onReset: () => void;
   onPreset: (p: Preset) => void;
   activePreset: Preset | null;
@@ -19,7 +20,7 @@ type Props = {
 };
 
 export function DebugPanel({
-  config, onChange, fps, count, onReset,
+  config, onChange, fps, count, avgSpeed, onReset,
   onPreset, activePreset, speed, onSpeed,
   showVectors, onToggleVectors,
   showTrails, onToggleTrails,
@@ -49,6 +50,7 @@ export function DebugPanel({
           </span>
           <span className="tabular-nums" style={{ color: "var(--orbis-accent)" }}>{fps} fps</span>
           <span className="tabular-nums" style={{ color: "var(--orbis-text-muted)" }}>· {count}</span>
+          <span className="tabular-nums" style={{ color: "var(--orbis-text-muted)" }}>· {avgSpeed.toFixed(1)} v</span>
         </div>
         {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
       </button>
@@ -108,12 +110,12 @@ export function DebugPanel({
             </div>
           </div>
 
-          <Slider label="Attraction (G)" min={0} max={0.5} step={0.005} value={config.G}
-            onChange={(v) => onChange({ G: v })} format={(v) => v.toFixed(3)} />
+          <Slider label="Attraction (G)" min={0} max={1} step={0.01} value={config.G}
+            onChange={(v) => onChange({ G: v })} format={(v) => v.toFixed(2)} />
           <Slider label="Max force" min={10} max={300} step={5} value={config.maxForce}
             onChange={(v) => onChange({ maxForce: v })} format={(v) => v.toFixed(0)} />
-          <Slider label="Damping" min={0.95} max={1} step={0.001} value={config.damping}
-            onChange={(v) => onChange({ damping: v })} format={(v) => v.toFixed(3)} />
+          <Slider label="Damping" min={0.995} max={1} step={0.0001} value={config.damping}
+            onChange={(v) => onChange({ damping: v })} format={(v) => v.toFixed(4)} />
           <Slider label="Merge threshold" min={20} max={200} step={1} value={config.mergeThreshold}
             onChange={(v) => onChange({ mergeThreshold: v })} format={(v) => v.toFixed(0)} />
           <Slider label="Spawn rate (s)" min={3} max={30} step={1} value={config.spawnRate}

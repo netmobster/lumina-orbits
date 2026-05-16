@@ -19,6 +19,7 @@ export function OrbisCanvas() {
   const [activePreset, setActivePreset] = useState<Preset | null>("orbit");
   const [fps, setFps] = useState(0);
   const [count, setCount] = useState(0);
+  const [avgSpeed, setAvgSpeed] = useState(0);
   const [speed, setSpeed] = useState(1);
   const [showVectors, setShowVectors] = useState(false);
   const [showTrails, setShowTrails] = useState(true);
@@ -48,7 +49,7 @@ export function OrbisCanvas() {
     resize();
     window.addEventListener("resize", resize);
 
-    circlesRef.current = seedCircles(sizeRef.current.w, sizeRef.current.h);
+    circlesRef.current = seedCircles(sizeRef.current.w, sizeRef.current.h, configRef.current);
 
     let raf = 0;
     let last = performance.now();
@@ -81,6 +82,14 @@ export function OrbisCanvas() {
       if (fpsTimer >= 0.25) {
         setFps(Math.round(fpsFrames / fpsAcc));
         setCount(circlesRef.current.length);
+        const cs = circlesRef.current;
+        if (cs.length > 0) {
+          let sum = 0;
+          for (const c of cs) sum += Math.hypot(c.vx, c.vy);
+          setAvgSpeed(sum / cs.length);
+        } else {
+          setAvgSpeed(0);
+        }
         fpsAcc = 0; fpsFrames = 0; fpsTimer = 0;
       }
       raf = requestAnimationFrame(loop);
@@ -157,7 +166,7 @@ export function OrbisCanvas() {
   };
 
   const handleReset = () => {
-    circlesRef.current = seedCircles(sizeRef.current.w, sizeRef.current.h);
+    circlesRef.current = seedCircles(sizeRef.current.w, sizeRef.current.h, configRef.current);
     selectedRef.current = null;
     spawnAccRef.current = 0;
   };
@@ -192,6 +201,7 @@ export function OrbisCanvas() {
         onChange={handleChange}
         fps={fps}
         count={count}
+        avgSpeed={avgSpeed}
         onReset={handleReset}
         onPreset={handlePreset}
         activePreset={activePreset}
