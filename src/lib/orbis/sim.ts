@@ -1,0 +1,219 @@
+import { blendColor, randomPaletteColor } from "./palette";
+import { Circle, SimConfig, radiusOf } from "./types";
+
+let _id = 1;
+const nextId = () => _id++;
+
+export function makeCircle(opts: Partial<Circle> & { mass: number; x: number; y: number }): Circle {
+  const color = opts.color ?? randomPaletteColor();
+  return {
+    id: opts.id ?? nextId(),
+    x: opts.x,
+    y: opts.y,
+    vx: opts.vx ?? 0,
+    vy: opts.vy ?? 0,
+    mass: opts.mass,
+    color: { core: color.core, shadow: color.shadow },
+    flashUntil: opts.flashUntil ?? 0,
+    stickyWith: new Set<number>(),
+  };
+}
+
+export function seedCircles(w: number, h: number): Circle[] {
+  const n = 8 + Math.floor(Math.random() * 5);
+  const out: Circle[] = [];
+  for (let i = 0; i < n; i++) {
+    const mass = 5 + Math.random() * 35;
+    out.push(
+      makeCircle({
+        x: 80 + Math.random() * (w - 160),
+        y: 80 + Math.random() * (h - 160),
+        vx: (Math.random() - 0.5) * 30,
+        vy: (Math.random() - 0.5) * 30,
+        mass,
+      }),
+    );
+  }
+  return out;
+}
+
+export function spawnFromEdge(w: number, h: number): Circle {
+  const side = Math.floor(Math.random() * 4);
+  let x = 0, y = 0;
+  if (side === 0) { x = Math.random() * w; y = 10; }
+  else if (side === 1) { x = w - 10; y = Math.random() * h; }
+  else if (side === 2) { x = Math.random() * w; y = h - 10; }
+  else { x = 10; y = Math.random() * h; }
+  const cx = w / 2, cy = h / 2;
+  const dx = cx - x, dy = cy - y;
+  const len = Math.hypot(dx, dy) || 1;
+  const speed = 25 + Math.random() * 20;
+  const jitter = 0.4;
+  return makeCircle({
+    x, y,
+    vx: (dx / len) * speed + (Math.random() - 0.5) * speed * jitter,
+    vy: (dy / len) * speed + (Math.random() - 0.5) * speed * jitter,
+    mass: 5 + Math.random() * 7,
+  });
+}
+
+const MIN_DIST = 4;
+const MAX_FORCE = 800;
+
+export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h: number): Circle[] {
+  const n = circles.length;
+
+  // clear sticky markers each frame; re-discovered during collision pass
+  for (let i = 0; i < n; i++) circles[i].stickyWith.clear();
+
+  // forces
+  for (let i = 0; i < n; i++) {
+    const a = circles[i];
+    for (let j = i + 1; j < n; j++) {
+      const b = circles[j];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const d2 = Math.max(dx * dx + dy * dy, MIN_DIST * MIN_DIST);
+      const d = Math.sqrt(d2);
+      let f = (cfg.G * a.mass * b.mass) / d2;
+      if (f > MAX_FORCE) f = MAX_FORCE;
+      const fx = (f * dx) / d;
+      const fy = (f * dy) / d;
+      a.vx += (fx / a.mass) * dt;
+      a.vy += (fy / a.mass) * dt;
+      b.vx -= (fx / b.mass) * dt;
+      b.vy -= (fy / b.mass) * dt;
+    }
+  }
+
+  // integrate + damping + edges
+  const dampPerFrame = Math.pow(cfg.damping, dt * 60);
+  for (let i = 0; i < n; i++) {
+    const c = circles[i];
+    c.vx *= dampPerFrame;
+    c.vy *= dampPerFrame;
+    c.x += c.vx * dt;
+    c.y += c.vy * dt;
+    const r = radiusOf(c.mass);
+    if (c.x < r) { c.x = r; c.vx = -c.vx * 0.7; }
+    else if (c.x > w - r) { c.x = w - r; c.vx = -c.vx * 0.7; }
+    if (c.y < r) { c.y = r; c.vy = -c.vy * 0.7; }
+    else if (c.y > h - r) { c.y = h - r; c.vy = -c.vy * 0.7; }
+  }
+
+  // collisions
+  const mergedIds = new Set<number>();
+  const newCircles: Circle[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = circles[i];
+    if (mergedIds.has(a.id)) continue;
+    for (let j = i + 1; j < n; j++) {
+      const b = circles[j];
+      if (mergedIds.has(b.id)) continue;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const d = Math.hypot(dx, dy) || 0.0001;
+      const ra = radiusOf(a.mass), rb = radiusOf(b.mass);
+      if (d < ra + rb) {
+        const larger = a.mass >= b.mass ? a : b;
+        const smaller = larger === a ? b : a;
+        const ratio = smaller.mass / larger.mass;
+        if (ratio >= 0.6) {
+          // sticky
+          a.stickyWith.add(b.id);
+          b.stickyWith.add(a.id);
+          // positional resolution
+          const overlap = (ra + rb - d);
+          const nx = dx / d, ny = dy / d;
+          a.x -= nx * overlap * 0.5;
+          a.y -= ny * overlap * 0.5;
+          b.x += nx * overlap * 0.5;
+          b.y += ny * overlap * 0.5;
+          // gentle damp on relative velocity so they clump
+          const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
+          a.vx += rvx * 0.05;
+          a.vy += rvy * 0.05;
+          b.vx -= rvx * 0.05;
+          b.vy -= rvy * 0.05;
+          if (a.mass + b.mass >= cfg.mergeThreshold) {
+            const merged = mergeCircles(a, b);
+            mergedIds.add(a.id);
+            mergedIds.add(b.id);
+            newCircles.push(merged);
+            break;
+          }
+        } else {
+          // bounce
+          const nx = dx / d, ny = dy / d;
+          const overlap = (ra + rb - d);
+          a.x -= nx * overlap * 0.5;
+          a.y -= ny * overlap * 0.5;
+          b.x += nx * overlap * 0.5;
+          b.y += ny * overlap * 0.5;
+          const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
+          const velAlongNormal = rvx * nx + rvy * ny;
+          if (velAlongNormal < 0) {
+            const e = 0.6;
+            const jImp = -(1 + e) * velAlongNormal / (1 / a.mass + 1 / b.mass);
+            const ix = jImp * nx, iy = jImp * ny;
+            a.vx -= ix / a.mass;
+            a.vy -= iy / a.mass;
+            b.vx += ix / b.mass;
+            b.vy += iy / b.mass;
+          }
+        }
+      }
+    }
+  }
+
+  if (mergedIds.size === 0) return circles;
+  return circles.filter((c) => !mergedIds.has(c.id)).concat(newCircles);
+}
+
+export function mergeCircles(a: Circle, b: Circle): Circle {
+  const totalMass = a.mass + b.mass;
+  const newMass = totalMass * 0.9; // 10% energy loss
+  const x = (a.x * a.mass + b.x * b.mass) / totalMass;
+  const y = (a.y * a.mass + b.y * b.mass) / totalMass;
+  // conserve momentum
+  let vx = (a.vx * a.mass + b.vx * b.mass) / newMass;
+  let vy = (a.vy * a.mass + b.vy * b.mass) / newMass;
+  // small outward burst
+  const burst = 5 + Math.random() * 10;
+  const ang = Math.random() * Math.PI * 2;
+  vx += Math.cos(ang) * burst;
+  vy += Math.sin(ang) * burst;
+  const color = blendColor(a.color, b.color, a.mass, b.mass);
+  return {
+    id: nextId(),
+    x, y, vx, vy,
+    mass: newMass,
+    color,
+    flashUntil: performance.now() + 220,
+    stickyWith: new Set<number>(),
+  };
+}
+
+export function splitCircle(c: Circle): [Circle, Circle] {
+  const m = c.mass / 2;
+  const r = radiusOf(m);
+  const ang = Math.random() * Math.PI * 2;
+  const ox = Math.cos(ang) * (r + 1);
+  const oy = Math.sin(ang) * (r + 1);
+  const kick = 40;
+  const px = -Math.sin(ang) * kick;
+  const py = Math.cos(ang) * kick;
+  return [
+    makeCircle({ x: c.x + ox, y: c.y + oy, vx: c.vx + px, vy: c.vy + py, mass: m, color: c.color, flashUntil: performance.now() + 180 }),
+    makeCircle({ x: c.x - ox, y: c.y - oy, vx: c.vx - px, vy: c.vy - py, mass: m, color: c.color, flashUntil: performance.now() + 180 }),
+  ];
+}
+
+export function findCircleAt(circles: Circle[], x: number, y: number): Circle | null {
+  for (let i = circles.length - 1; i >= 0; i--) {
+    const c = circles[i];
+    const r = radiusOf(c.mass);
+    if ((c.x - x) ** 2 + (c.y - y) ** 2 <= r * r * 1.4) return c;
+  }
+  return null;
+}
