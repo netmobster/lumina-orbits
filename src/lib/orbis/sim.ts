@@ -236,7 +236,10 @@ export function mergeCircles(a: Circle, b: Circle): Circle {
     color,
     flashUntil: performance.now() + 220,
     stickyWith: new Set<number>(),
-    trail: [],
+    px: x,
+    py: y,
+    radius: radiusOf(newMass),
+    rgbPrefix: rgbPrefixOf(color.core),
   };
 }
 
