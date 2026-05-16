@@ -42,6 +42,7 @@ export type SimConfig = {
   glowSoftness: number;
   tailFadeRate: number;
   splitRate: number;
+  xlEnabled: boolean;
 };
 
 export const DEFAULT_CONFIG: SimConfig = {
@@ -57,6 +58,7 @@ export const DEFAULT_CONFIG: SimConfig = {
   glowSoftness: 3.2,
   tailFadeRate: 1.5,
   splitRate: 0,
+  xlEnabled: false,
 };
 
 export const radiusOf = (mass: number) => Math.sqrt(mass) * 4;
@@ -71,7 +73,7 @@ export const PRESETS: Record<Preset, PresetPatch> = {
     spawnRate: 15, auraIntensity: 10, ribbonDrift: 5,
     trailLength: 1400, trailOpacity: 200,
     glowSoftness: 6, tailFadeRate: 3,
-    splitRate: 0.15, speed: 8,
+    splitRate: 0.15, xlEnabled: true, speed: 8,
   },
   orbit:  { G: 0.35, damping: 0.9995, mergeThreshold: 30, maxForce: 120 },
   spiral: { G: 0.55, damping: 0.999,  mergeThreshold: 20, maxForce: 200 },
