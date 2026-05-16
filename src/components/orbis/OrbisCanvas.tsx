@@ -4,7 +4,10 @@ import { MusicControl } from "./MusicControl";
 import { BackgroundAura } from "./BackgroundAura";
 import { LoadingOrb } from "./LoadingOrb";
 import { StatsHUD } from "./StatsHUD";
-import { findCircleAt, seedCircles, spawnFromEdge, splitCircle, step, mergeCircles } from "@/lib/orbis/sim";
+import {
+  findCircleAt, seedCircles, spawnFromEdge, splitCircle, step, mergeCircles,
+  fastForward, triggerSupernova, spawnComet, spawnAsteroidBurst,
+} from "@/lib/orbis/sim";
 import { render } from "@/lib/orbis/render";
 import { DEFAULT_CONFIG, PRESETS, type Circle, type Preset, type SimConfig } from "@/lib/orbis/types";
 import {
@@ -37,6 +40,11 @@ export function OrbisCanvas() {
   const pulsesRef = useRef<{ x: number; y: number; bornAt: number }[]>([]);
   const gameOverRef = useRef(false);
   const simTimeRef = useRef(0);
+  // chaos agent effect timers (sim-time deadlines)
+  const gravityPulseUntilRef = useRef(0);
+  const inversionUntilRef = useRef(0);
+  const blackHoleUntilRef = useRef(0);
+  const blackHolePosRef = useRef<{ x: number; y: number } | null>(null);
 
   const [configState, setConfigState] = useState<SimConfig>({ ...DEFAULT_CONFIG, ...PRESETS.orbit });
   const [enemyConfigState, setEnemyConfigState] = useState<EnemyConfig>({ ...DEFAULT_ENEMY_CONFIG });
@@ -51,6 +59,7 @@ export function OrbisCanvas() {
   const [gameOver, setGameOver] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [totalMass, setTotalMass] = useState(0);
+  const [fastForwarding, setFastForwarding] = useState(false);
   const [, force] = useState(0);
 
   // setup
@@ -102,8 +111,8 @@ export function OrbisCanvas() {
       last = now;
       const dt = realDt * speedRef.current;
 
-      // spawn
-      spawnAccRef.current += realDt;
+      // spawn — ticks on SIM time so faster speeds = more spawns
+      spawnAccRef.current += dt;
       if (spawnAccRef.current >= configRef.current.spawnRate) {
         spawnAccRef.current = 0;
         circlesRef.current = circlesRef.current.concat(
@@ -113,7 +122,22 @@ export function OrbisCanvas() {
 
       if (dt > 0 && !gameOverRef.current) {
         simTimeRef.current += dt;
-        circlesRef.current = step(circlesRef.current, configRef.current, dt, sizeRef.current.w, sizeRef.current.h);
+        // resolve chaos-agent modifiers for this frame
+        const t = simTimeRef.current;
+        const gravityMul = t < gravityPulseUntilRef.current ? 5 : 1;
+        const gravitySign = t < inversionUntilRef.current ? -1 : 1;
+        const extraAttractor =
+          t < blackHoleUntilRef.current && blackHolePosRef.current
+            ? { x: blackHolePosRef.current.x, y: blackHolePosRef.current.y, mass: 800 }
+            : null;
+        circlesRef.current = step(
+          circlesRef.current,
+          configRef.current,
+          dt,
+          sizeRef.current.w,
+          sizeRef.current.h,
+          { gravityMultiplier: gravityMul, gravitySign, extraAttractor },
+        );
 
         // enemy waves
         const ecfg = enemyConfigRef.current;
@@ -284,6 +308,10 @@ export function OrbisCanvas() {
     simTimeRef.current = 0;
     setElapsedSec(0);
     setTotalMass(circlesRef.current.reduce((s, c) => s + c.mass, 0));
+    gravityPulseUntilRef.current = 0;
+    inversionUntilRef.current = 0;
+    blackHoleUntilRef.current = 0;
+    blackHolePosRef.current = null;
     const tctx = trailCtxRef.current;
     if (tctx) tctx.clearRect(0, 0, sizeRef.current.w, sizeRef.current.h);
   };
@@ -339,6 +367,56 @@ export function OrbisCanvas() {
     setEnemyConfigState((s) => ({ ...s, ...patch }));
   };
 
+  const handleFastForward = () => {
+    if (fastForwarding) return;
+    setFastForwarding(true);
+    // let the overlay paint before we block the thread
+    window.setTimeout(() => {
+      const { w, h } = sizeRef.current;
+      circlesRef.current = fastForward(circlesRef.current, configRef.current, 3600, w, h);
+      simTimeRef.current += 3600;
+      setElapsedSec(simTimeRef.current);
+      let mSum = 0;
+      for (const c of circlesRef.current) mSum += c.mass;
+      for (const e of enemiesRef.current) mSum += e.mass;
+      setTotalMass(mSum);
+      setFastForwarding(false);
+    }, 30);
+  };
+
+  const handleChaos = (id: string) => {
+    const { w, h } = sizeRef.current;
+    const t = simTimeRef.current;
+    switch (id) {
+      case "supernova":
+        circlesRef.current = triggerSupernova(circlesRef.current);
+        break;
+      case "blackhole":
+        blackHolePosRef.current = { x: w / 2, y: h / 2 };
+        blackHoleUntilRef.current = t + 3;
+        break;
+      case "pulse":
+        gravityPulseUntilRef.current = t + 2;
+        break;
+      case "storm": {
+        // 3 bursts of 5 over ~1s of real time
+        const burst = () => {
+          circlesRef.current = circlesRef.current.concat(spawnAsteroidBurst(w, h, 5));
+        };
+        burst();
+        window.setTimeout(burst, 333);
+        window.setTimeout(burst, 666);
+        break;
+      }
+      case "comet":
+        circlesRef.current = circlesRef.current.concat(spawnComet(w, h));
+        break;
+      case "inversion":
+        inversionUntilRef.current = t + 2;
+        break;
+    }
+  };
+
   return (
     <>
       <BackgroundAura intensity={configState.auraIntensity} driftSpeed={configState.ribbonDrift} />
@@ -361,8 +439,32 @@ export function OrbisCanvas() {
         onToggleTrails={handleToggleTrails}
         enemyConfig={enemyConfigState}
         onEnemyChange={handleEnemyChange}
+        onFastForward={handleFastForward}
+        onChaos={handleChaos}
       />
       <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
+      {fastForwarding && (
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center p-6"
+          style={{ background: "rgba(30, 4, 4, 0.55)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+        >
+          <div
+            className="rounded-3xl border px-8 py-6 text-center"
+            style={{
+              background: "rgba(60, 8, 8, 0.85)",
+              borderColor: "rgba(217, 74, 74, 0.5)",
+              color: "#f0d0d0",
+              fontFamily: "'DM Sans', system-ui, sans-serif",
+              minWidth: 280,
+            }}
+          >
+            <div className="mb-2 text-[11px] uppercase tracking-[0.3em]" style={{ color: "#d94a4a" }}>
+              Radioactive
+            </div>
+            <div className="text-[16px]">Fast-forwarding 1 hour…</div>
+          </div>
+        </div>
+      )}
       {gameOver && (
         <div
           className="fixed inset-0 z-30 flex items-center justify-center p-6"
