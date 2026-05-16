@@ -24,10 +24,12 @@ export function OrbisCanvas() {
   const [speed, setSpeed] = useState(1);
   const [showVectors, setShowVectors] = useState(false);
   const [showTrails, setShowTrails] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [, force] = useState(0);
 
   // setup
   useEffect(() => {
+    const t = window.setTimeout(() => setLoading(false), 1200);
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -98,6 +100,7 @@ export function OrbisCanvas() {
     raf = requestAnimationFrame(loop);
 
     return () => {
+      window.clearTimeout(t);
       window.removeEventListener("resize", resize);
       cancelAnimationFrame(raf);
     };
@@ -198,6 +201,7 @@ export function OrbisCanvas() {
     <>
       <BackgroundAura intensity={configState.auraIntensity} />
       <canvas ref={canvasRef} className="fixed inset-0 z-10 block cursor-crosshair" />
+      <LoadingOrb visible={loading} />
       <DebugPanel
         config={configState}
         onChange={handleChange}
