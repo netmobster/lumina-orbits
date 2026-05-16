@@ -26,6 +26,7 @@ export function OrbisCanvas() {
   const [speed, setSpeed] = useState(1);
   const [showTrails, setShowTrails] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [, force] = useState(0);
 
   // setup
@@ -215,6 +216,29 @@ export function OrbisCanvas() {
     setSpeed(s);
   };
 
+  // global keyboard shortcuts: Space pause, R reset, ? / H help, Esc close help
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === " ") {
+        e.preventDefault();
+        const next = speedRef.current === 0 ? 1 : 0;
+        speedRef.current = next;
+        setSpeed(next);
+      } else if (e.key === "r" || e.key === "R") {
+        handleReset();
+      } else if (e.key === "?" || e.key === "/" || e.key === "h" || e.key === "H") {
+        setHelpOpen((v) => !v);
+      } else if (e.key === "Escape") {
+        setHelpOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const handleToggleTrails = (v: boolean) => {
     showTrailsRef.current = v;
     setShowTrails(v);
@@ -239,6 +263,86 @@ export function OrbisCanvas() {
         showTrails={showTrails}
         onToggleTrails={handleToggleTrails}
       />
+      <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <button
+        onClick={() => setHelpOpen(true)}
+        title="Keyboard shortcuts (?)"
+        aria-label="Keyboard shortcuts"
+        className="fixed bottom-4 right-4 z-20 flex h-9 w-9 items-center justify-center rounded-full border text-[13px] tabular-nums transition-colors hover:bg-white/5"
+        style={{
+          background: "var(--orbis-surface)",
+          borderColor: "var(--orbis-hairline)",
+          color: "var(--orbis-text-muted)",
+          backdropFilter: "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
+        }}
+      >
+        ?
+      </button>
     </>
+  );
+}
+
+function HelpOverlay({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  const rows: [string, string][] = [
+    ["Space", "Pause / play simulation"],
+    ["R", "Reset — reseed circles"],
+    ["1 – 5", "Switch debug panel tab (Time, Planets, Background, Visuals, Experimental)"],
+    ["? / H", "Toggle this help"],
+    ["Esc", "Close help"],
+    ["Click", "Select a circle"],
+    ["Click + click", "Attempt merge with the selected circle"],
+    ["Right-click", "Split the selected circle in two"],
+  ];
+  return (
+    <div
+      className="fixed inset-0 z-30 flex items-center justify-center p-6"
+      style={{ background: "rgba(4, 14, 18, 0.55)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-3xl border p-6 text-[13px]"
+        style={{
+          background: "var(--orbis-surface)",
+          borderColor: "var(--orbis-hairline)",
+          color: "var(--orbis-text)",
+          fontFamily: "'DM Sans', system-ui, sans-serif",
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <span className="text-[11px] uppercase tracking-[0.2em]" style={{ color: "var(--orbis-text-muted)" }}>
+            Controls
+          </span>
+          <button
+            onClick={onClose}
+            className="rounded-lg border px-2 py-0.5 text-[11px] uppercase tracking-wider transition-colors hover:bg-white/5"
+            style={{ borderColor: "var(--orbis-hairline)", color: "var(--orbis-text-muted)" }}
+          >
+            Esc
+          </button>
+        </div>
+        <ul className="space-y-2">
+          {rows.map(([key, desc]) => (
+            <li key={key} className="flex items-start gap-3">
+              <kbd
+                className="shrink-0 rounded-md border px-2 py-0.5 text-[11px] tabular-nums"
+                style={{
+                  borderColor: "var(--orbis-hairline)",
+                  color: "var(--orbis-accent)",
+                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                  minWidth: "5.5rem",
+                  textAlign: "center",
+                }}
+              >
+                {key}
+              </kbd>
+              <span style={{ color: "var(--orbis-text-muted)" }}>{desc}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }
