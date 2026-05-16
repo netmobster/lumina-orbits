@@ -203,7 +203,7 @@ export function DebugPanel({
 
           {tab === "xl" && <>
           <Slider label="Split randomness" hint="Average random splits per second. Big bodies spontaneously break in two."
-            min={0} max={2} step={0.05} value={config.splitRate}
+            min={0} max={1} step={0.01} value={config.splitRate}
             onChange={(v) => onChange({ splitRate: v })} format={(v) => v.toFixed(2) + "/s"} />
           </>}
 
