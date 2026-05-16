@@ -240,6 +240,9 @@ export function stepEnemies(
         const adx = e.x - target.x, ady = e.y - target.y;
         e.attachAngle = Math.atan2(ady, adx);
         e.trail.length = 0;
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("orbis:sfx:attach"));
+        }
       }
     }
   }
