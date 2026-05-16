@@ -118,7 +118,7 @@ export function DebugPanel({
             onChange={(v) => onChange({ damping: v })} format={(v) => v.toFixed(4)} />
           <Slider label="Merge threshold" min={20} max={200} step={1} value={config.mergeThreshold}
             onChange={(v) => onChange({ mergeThreshold: v })} format={(v) => v.toFixed(0)} />
-          <Slider label="Spawn rate (s)" min={3} max={100} step={1} value={config.spawnRate}
+          <Slider label="Spawn rate (s)" min={3} max={500} step={1} value={config.spawnRate}
             onChange={(v) => onChange({ spawnRate: v })} format={(v) => v.toFixed(0)} />
           <Slider label="Aura intensity" min={1} max={10} step={0.1} value={config.auraIntensity}
             onChange={(v) => onChange({ auraIntensity: v })} format={(v) => v.toFixed(1)} />

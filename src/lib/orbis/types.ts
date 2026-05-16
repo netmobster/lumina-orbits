@@ -31,7 +31,7 @@ export const DEFAULT_CONFIG: SimConfig = {
   G: 0.35,
   damping: 0.9995,
   mergeThreshold: 30,
-  spawnRate: 15,
+  spawnRate: 300,
   maxForce: 120,
   auraIntensity: 5.0,
   ribbonDrift: 1.0,
