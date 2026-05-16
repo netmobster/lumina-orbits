@@ -1,27 +1,43 @@
-# Radioactive tab: smarter targeting + faster spawn ceiling
+# Background music with top-left volume control
 
-## What changes for the user
+## What the user sees
 
-- Each scout now picks its **own** target using a score that combines circle mass and distance, so a fresh wave fans out across multiple friendlies instead of dogpiling whichever circle is smallest globally.
-- **Wave rate** slider goes faster: minimum drops from `5 s` → `1.5 s` (max stays `60 s`). That's the ~3× higher spawn rate. Default stays `20 s`.
-- The five sliders the message calls out — **Enemies on/off, Wave rate, Swarm size, Drain rate, Convert threshold** — already exist in the Radioactive tab and are already wired to `enemyConfigRef` in `OrbisCanvas`, so they take effect every frame. I'll do a quick live-verification pass and fix anything that turns out to be one-shot (e.g. `waveAccRef` not clamping when you shorten wave rate mid-run).
+A small **volume icon** fixed at the top-left of the screen (mirroring the DebugPanel at top-right).
 
-## Files changed
+- **Click** the icon → toggle mute/unmute. Icon swaps between `Volume2` (playing) and `VolumeX` (muted).
+- **Hover** the icon → a thin vertical slider slides out beside it for adjusting volume.
+- The slider's **0–100% range maps to 0–30% actual audio volume** (user "100%" = HTMLAudio `volume = 0.30`).
+- **Default slider value: 20%** (= actual volume `0.06`).
+- The track **loops forever** — `audio.loop = true`. It keeps replaying seamlessly until the user mutes. Mute does not stop playback, it just sets volume to 0, so unmuting resumes instantly without a restart.
+- Autoplay starts on the **first user interaction** anywhere on the page (browsers block silent autoplay). Until that first gesture, the icon shows a subtle pulse hint.
 
-- `src/lib/orbis/enemies.ts`
-  - Replace the single global `lowest` pick with **per-enemy target scoring**:
-    ```text
-    score(c) = c.mass + PROX_WEIGHT * distance(e, c)
-    ```
-    with `PROX_WEIGHT ≈ 0.05` (tunable constant — small circles still preferred, but a nearby medium circle beats a faraway tiny one). Picked only from non-infected; fallback unchanged.
-  - Targets are recomputed each frame for unattached scouts, so as one circle gets crowded its growing distance from later arrivals naturally pushes them elsewhere.
-- `src/components/orbis/DebugPanel.tsx`
-  - Wave rate slider `min={5}` → `min={1.5}`, `step={1}` → `step={0.5}`. Hint text updated to reflect new range. Display format kept (`.toFixed(1) + "s"` if currently `.0`, otherwise `.1`).
+## Files
+
+### Added
+- `src/assets/geyserlight-sonar.mp3` — copied from `user-uploads://Geyserlight_Sonar.mp3`.
+- `src/components/orbis/MusicControl.tsx`:
+  - Owns one `HTMLAudioElement` (created in `useEffect`, `loop = true`, `preload = "auto"`, source imported from `@/assets/geyserlight-sonar.mp3`).
+  - State: `muted` (default `false`), `sliderVolume` (0–1, default `0.2`), `hovering`.
+  - Effective volume each render: `audio.volume = muted ? 0 : sliderVolume * 0.30`.
+  - First-gesture autoplay: one-shot `window` listener on `pointerdown`/`keydown` that calls `audio.play()` (try/catch on the play promise) then removes itself.
+  - Layout: `fixed left-4 top-4 z-20` container. Icon is a 36×36 round glass button matching the existing bottom-right reset button. On `group-hover`, a `h-24 w-9` panel fades in to the right with a vertical shadcn `Slider` (`orientation="vertical"`).
+  - Tooltip: "Music (M)". Keyboard shortcut **M** toggles mute.
+
+### Changed
 - `src/components/orbis/OrbisCanvas.tsx`
-  - In the wave-spawn block, clamp `waveAccRef.current` to at most `ecfg.waveRate` whenever the config changes (or simply each frame: `if (waveAccRef.current > ecfg.waveRate) waveAccRef.current = ecfg.waveRate`). This makes shortening wave rate mid-run feel instant instead of waiting out the old interval.
+  - Render `<MusicControl />` once alongside the existing fixed UI.
+  - Add **M** to the global keydown handler — dispatches a `CustomEvent("orbis:toggle-music")` that `MusicControl` listens for, keeping audio ownership inside the component.
+  - Extend the keyboard-shortcut help overlay to list **M — Mute / unmute music**.
 
 ## Out of scope
 
-- No new sliders (the listed five are already present).
-- No changes to attached-scout behavior, boss logic, infection spread, or render.
-- No new keyboard shortcuts.
+- No playlist, track selection, or crossfade.
+- No persistence across reloads (volume resets to 20%, unmuted).
+- No ducking on game-over.
+- No changes to simulation or enemies.
+
+## Technical notes
+
+- Vite imports `mp3` as a URL string out of the box — no extra type shim required.
+- The 30% hard cap lives in exactly one place (`MusicControl.tsx`); the slider UI never shows a number above 100%.
+- Looping is handled by the browser via `audio.loop = true`, so there is no gap between iterations and no JS timer involved.
