@@ -142,3 +142,29 @@
     color: var(--color-foreground);
   }
 }
+
+:root {
+  --orbis-bg: #080d12;
+  --orbis-bg-2: #0d1a1f;
+  --orbis-accent: oklch(0.72 0.12 175);
+  --orbis-surface: rgba(8, 13, 18, 0.78);
+  --orbis-hairline: rgba(255, 255, 255, 0.06);
+  --orbis-text: rgba(230, 240, 240, 0.88);
+  --orbis-text-muted: rgba(180, 200, 200, 0.55);
+}
+
+@keyframes orbis-drift-a {
+  0%   { transform: translate3d(-10%, -10%, 0) scale(1);   filter: hue-rotate(0deg); }
+  50%  { transform: translate3d(10%, 5%, 0) scale(1.15);   filter: hue-rotate(20deg); }
+  100% { transform: translate3d(-10%, -10%, 0) scale(1);   filter: hue-rotate(0deg); }
+}
+@keyframes orbis-drift-b {
+  0%   { transform: translate3d(20%, 30%, 0) scale(1.1);   filter: hue-rotate(0deg); }
+  50%  { transform: translate3d(-5%, 10%, 0) scale(0.95);  filter: hue-rotate(-25deg); }
+  100% { transform: translate3d(20%, 30%, 0) scale(1.1);   filter: hue-rotate(0deg); }
+}
+@keyframes orbis-drift-c {
+  0%   { transform: translate3d(-20%, 40%, 0) scale(1);    filter: hue-rotate(0deg); }
+  50%  { transform: translate3d(15%, -10%, 0) scale(1.2);  filter: hue-rotate(30deg); }
+  100% { transform: translate3d(-20%, 40%, 0) scale(1);    filter: hue-rotate(0deg); }
+}
