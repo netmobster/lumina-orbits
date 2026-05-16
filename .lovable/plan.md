@@ -1,43 +1,47 @@
-# Background music with top-left volume control
+# Bottom-right Stats HUD
+
+A small glass panel pinned to the bottom-right of `/game`, next to the existing `?` help button, showing two live readouts.
 
 ## What the user sees
 
-A small **volume icon** fixed at the top-left of the screen (mirroring the DebugPanel at top-right).
+- **Elapsed**: `mm:ss` (or `h:mm:ss` past one hour). Counts **simulation time** — scales with the speed multiplier, freezes when paused (speed = 0), resets on Reset (R) and on game-over reset.
+- **Mass**: `4.2 Earths` — sum of every body on screen (friendly circles **and** enemies when the enemies system is on). Uses the same glass styling as the `?` button so it reads as part of the chrome.
 
-- **Click** the icon → toggle mute/unmute. Icon swaps between `Volume2` (playing) and `VolumeX` (muted).
-- **Hover** the icon → a thin vertical slider slides out beside it for adjusting volume.
-- The slider's **0–100% range maps to 0–30% actual audio volume** (user "100%" = HTMLAudio `volume = 0.30`).
-- **Default slider value: 20%** (= actual volume `0.06`).
-- The track **loops forever** — `audio.loop = true`. It keeps replaying seamlessly until the user mutes. Mute does not stop playback, it just sets volume to 0, so unmuting resumes instantly without a restart.
-- Autoplay starts on the **first user interaction** anywhere on the page (browsers block silent autoplay). Until that first gesture, the icon shows a subtle pulse hint.
+## Scale convention
+
+Radius in the sim is `sqrt(mass) * 4` pixels. Treating ~40px ≈ 1 cm at typical DPI, a 1 cm body corresponds to **mass = 25 sim units = 1 Earth**. So:
+
+```text
+earths = totalMass / 25
+```
+
+One source of truth as `EARTH_MASS_UNITS = 25` in `src/lib/orbis/types.ts`.
 
 ## Files
 
-### Added
-- `src/assets/geyserlight-sonar.mp3` — copied from `user-uploads://Geyserlight_Sonar.mp3`.
-- `src/components/orbis/MusicControl.tsx`:
-  - Owns one `HTMLAudioElement` (created in `useEffect`, `loop = true`, `preload = "auto"`, source imported from `@/assets/geyserlight-sonar.mp3`).
-  - State: `muted` (default `false`), `sliderVolume` (0–1, default `0.2`), `hovering`.
-  - Effective volume each render: `audio.volume = muted ? 0 : sliderVolume * 0.30`.
-  - First-gesture autoplay: one-shot `window` listener on `pointerdown`/`keydown` that calls `audio.play()` (try/catch on the play promise) then removes itself.
-  - Layout: `fixed left-4 top-4 z-20` container. Icon is a 36×36 round glass button matching the existing bottom-right reset button. On `group-hover`, a `h-24 w-9` panel fades in to the right with a vertical shadcn `Slider` (`orientation="vertical"`).
-  - Tooltip: "Music (M)". Keyboard shortcut **M** toggles mute.
+### `src/lib/orbis/types.ts`
+- Export `export const EARTH_MASS_UNITS = 25;`
 
-### Changed
-- `src/components/orbis/OrbisCanvas.tsx`
-  - Render `<MusicControl />` once alongside the existing fixed UI.
-  - Add **M** to the global keydown handler — dispatches a `CustomEvent("orbis:toggle-music")` that `MusicControl` listens for, keeping audio ownership inside the component.
-  - Extend the keyboard-shortcut help overlay to list **M — Mute / unmute music**.
+### `src/components/orbis/StatsHUD.tsx` (new)
+- Presentational component: `{ elapsedSec: number; totalMass: number }`.
+- Formats time (`mm:ss` / `h:mm:ss`) and mass (`(totalMass / EARTH_MASS_UNITS).toFixed(1)` + ` Earths`, singular `Earth` when value rounds to 1.0).
+- Layout: `fixed bottom-4 right-16 z-20` (sits left of the existing `?` button at `right-4`). Same glass tokens as the `?` button: `var(--orbis-surface)`, `var(--orbis-hairline)`, `var(--orbis-text-muted)`, `backdrop-filter: blur(14px)`, rounded, `DM Sans` + `JetBrains Mono` for numerals, `tabular-nums`.
+- Two stacked rows with tiny uppercase labels (`Elapsed`, `Mass`) and the value beneath, e.g.:
+  ```
+  ELAPSED   02:14
+  MASS      4.2 Earths
+  ```
+
+### `src/components/orbis/OrbisCanvas.tsx`
+- Add `simTimeRef = useRef(0)` and accumulate inside the existing `loop`: when `!gameOverRef.current`, `simTimeRef.current += dt` (note `dt = realDt * speedRef.current`, so pause naturally freezes it and speed scales it).
+- Add `totalMassRef = useRef(0)` updated in the same ~4Hz block that updates fps/count: `sum of circles.mass + sum of enemies.mass`.
+- Add React state `elapsedSec` and `totalMass` set in that same ~4Hz block (cheap, avoids per-frame re-renders).
+- In `handleReset`, set `simTimeRef.current = 0` and reset the state values.
+- Render `<StatsHUD elapsedSec={elapsedSec} totalMass={totalMass} />` next to the existing `?` button.
 
 ## Out of scope
 
-- No playlist, track selection, or crossfade.
-- No persistence across reloads (volume resets to 20%, unmuted).
-- No ducking on game-over.
-- No changes to simulation or enemies.
-
-## Technical notes
-
-- Vite imports `mp3` as a URL string out of the box — no extra type shim required.
-- The 30% hard cap lives in exactly one place (`MusicControl.tsx`); the slider UI never shows a number above 100%.
-- Looping is handled by the browser via `audio.loop = true`, so there is no gap between iterations and no JS timer involved.
+- No persistence across reloads or page nav.
+- No high-score, no "best time", no game-over summary.
+- No changes to physics, enemy logic, spawn, or rendering.
+- No changes to the homepage or other routes.
