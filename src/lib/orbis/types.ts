@@ -64,7 +64,7 @@ export const PRESETS: Record<Preset, PresetPatch> = {
     G: 0.7, damping: 1.0, mergeThreshold: 15, maxForce: 400,
     spawnRate: 15, auraIntensity: 10, ribbonDrift: 5,
     trailLength: 1400, trailOpacity: 200,
-    glowSoftness: 6, tailFadeRate: 0.4,
+    glowSoftness: 6, tailFadeRate: 3,
     splitRate: 0.6, speed: 8,
   },
   orbit:  { G: 0.35, damping: 0.9995, mergeThreshold: 30, maxForce: 120 },

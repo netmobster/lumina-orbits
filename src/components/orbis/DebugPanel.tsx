@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, RotateCcw, Pause, Play, Clock, Orbit, Mountain, Sparkles, Radiation } from "lucide-react";
 import type { Preset, SimConfig } from "@/lib/orbis/types";
 
@@ -33,6 +33,22 @@ export function DebugPanel({
     { id: "xl", label: "Experimental", Icon: Radiation },
   ];
 
+  // keyboard shortcuts 1–5 → tabs
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const idx = ["1", "2", "3", "4", "5"].indexOf(e.key);
+      if (idx === -1) return;
+      setTab(tabs[idx].id);
+      setCollapsed(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
     <div
       className="fixed right-4 top-4 z-20 w-72 rounded-3xl border text-[13px]"
@@ -65,13 +81,13 @@ export function DebugPanel({
         <div className="space-y-4 px-4 pb-4">
           {/* Tabs */}
           <div className="grid grid-cols-5 gap-1.5">
-            {tabs.map(({ id, label, Icon }) => {
+              {tabs.map(({ id, label, Icon }, i) => {
               const active = tab === id;
               return (
                 <button
                   key={id}
                   onClick={() => setTab(id)}
-                  title={label}
+                    title={`${label} (${i + 1})`}
                   aria-label={label}
                   className="flex items-center justify-center rounded-xl border py-1.5 transition-colors hover:bg-white/5"
                   style={{
@@ -141,33 +157,44 @@ export function DebugPanel({
           </>}
 
           {tab === "planets" && <>
-          <Slider label="Attraction (G)" min={0} max={1} step={0.01} value={config.G}
+          <Slider label="Attraction (G)" hint="Gravitational pull strength between bodies. Higher = stronger orbits and slingshots."
+            min={0} max={1} step={0.01} value={config.G}
             onChange={(v) => onChange({ G: v })} format={(v) => v.toFixed(2)} />
-          <Slider label="Max force" min={10} max={300} step={5} value={config.maxForce}
+          <Slider label="Max force" hint="Caps the force any pair can exert, preventing explosive kicks when bodies get very close."
+            min={10} max={300} step={5} value={config.maxForce}
             onChange={(v) => onChange({ maxForce: v })} format={(v) => v.toFixed(0)} />
-          <Slider label="Damping" min={0.995} max={1} step={0.0001} value={config.damping}
+          <Slider label="Damping" hint="Per-frame velocity retention. 1 = no friction; lower values slow everything down over time."
+            min={0.995} max={1} step={0.0001} value={config.damping}
             onChange={(v) => onChange({ damping: v })} format={(v) => v.toFixed(4)} />
-          <Slider label="Merge threshold" min={20} max={200} step={1} value={config.mergeThreshold}
+          <Slider label="Merge threshold" hint="Combined mass needed for two touching bodies to fuse. Lower = more merges."
+            min={20} max={200} step={1} value={config.mergeThreshold}
             onChange={(v) => onChange({ mergeThreshold: v })} format={(v) => v.toFixed(0)} />
-          <Slider label="Spawn rate (s)" min={3} max={1000} step={1} value={config.spawnRate}
+          <Slider label="Spawn rate (s)" hint="Seconds between new bodies entering from the edge. Lower = constant fresh arrivals."
+            min={3} max={1000} step={1} value={config.spawnRate}
             onChange={(v) => onChange({ spawnRate: v })} format={(v) => v.toFixed(0)} />
           </>}
 
           {tab === "bg" && <>
-          <Slider label="Aura intensity" min={1} max={10} step={0.1} value={config.auraIntensity}
+          <Slider label="Aura intensity" hint="Brightness of the soft colored clouds behind the simulation."
+            min={1} max={10} step={0.1} value={config.auraIntensity}
             onChange={(v) => onChange({ auraIntensity: v })} format={(v) => v.toFixed(1)} />
-          <Slider label="Ribbon drift" min={0} max={5} step={0.1} value={config.ribbonDrift}
+          <Slider label="Ribbon drift" hint="How fast the background ribbons slide around. 0 = frozen."
+            min={0} max={5} step={0.1} value={config.ribbonDrift}
             onChange={(v) => onChange({ ribbonDrift: v })} format={(v) => v.toFixed(1) + "×"} />
           </>}
 
           {tab === "visuals" && <>
-          <Slider label="Trail length" min={10} max={2000} step={10} value={config.trailLength}
+          <Slider label="Trail length" hint="How long tails persist before fully fading. Works together with Tail fade rate."
+            min={10} max={2000} step={10} value={config.trailLength}
             onChange={(v) => onChange({ trailLength: v })} format={(v) => v.toFixed(0)} />
-          <Slider label="Trail visibility" min={1} max={200} step={1} value={config.trailOpacity}
+          <Slider label="Trail visibility" hint="Overall brightness multiplier for the trails."
+            min={1} max={200} step={1} value={config.trailOpacity}
             onChange={(v) => onChange({ trailOpacity: v })} format={(v) => v.toFixed(0) + "×"} />
-          <Slider label="Glow softness" min={1} max={8} step={0.1} value={config.glowSoftness}
+          <Slider label="Glow softness" hint="Width of the soft halo around each trail segment. Higher = more aquatic blur."
+            min={1} max={8} step={0.1} value={config.glowSoftness}
             onChange={(v) => onChange({ glowSoftness: v })} format={(v) => v.toFixed(1) + "×"} />
-          <Slider label="Tail fade rate" min={0.3} max={4} step={0.05} value={config.tailFadeRate}
+          <Slider label="Tail fade rate" hint="How quickly tails dim over time. Lower = long lingering streaks; higher = snappy short tails."
+            min={0.3} max={4} step={0.05} value={config.tailFadeRate}
             onChange={(v) => onChange({ tailFadeRate: v })} format={(v) => v.toFixed(2)} />
           <div className="space-y-1.5">
             <Toggle label="Motion trails" checked={showTrails} onChange={onToggleTrails} />
@@ -175,7 +202,8 @@ export function DebugPanel({
           </>}
 
           {tab === "xl" && <>
-          <Slider label="Split randomness" min={0} max={2} step={0.05} value={config.splitRate}
+          <Slider label="Split randomness" hint="Average random splits per second. Big bodies spontaneously break in two."
+            min={0} max={2} step={0.05} value={config.splitRate}
             onChange={(v) => onChange({ splitRate: v })} format={(v) => v.toFixed(2) + "/s"} />
           </>}
 
@@ -188,7 +216,7 @@ export function DebugPanel({
           </button>
 
           <p className="text-[11px] leading-relaxed" style={{ color: "var(--orbis-text-muted)" }}>
-            Click to select. Click another to attempt merge. Right-click selected to split.
+            Click to select. Click another to attempt merge. Right-click selected to split. Press 1–5 to switch tabs.
           </p>
         </div>
       )}
@@ -222,15 +250,15 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
 }
 
 function Slider({
-  label, min, max, step, value, onChange, format,
+  label, hint, min, max, step, value, onChange, format,
 }: {
-  label: string; min: number; max: number; step: number; value: number;
+  label: string; hint?: string; min: number; max: number; step: number; value: number;
   onChange: (v: number) => void; format: (v: number) => string;
 }) {
   return (
-    <label className="block space-y-1.5">
+    <label className="block space-y-1.5" title={hint}>
       <div className="flex items-center justify-between">
-        <span style={{ color: "var(--orbis-text-muted)" }}>{label}</span>
+        <span style={{ color: "var(--orbis-text-muted)" }} className={hint ? "decoration-dotted underline-offset-4 underline" : ""}>{label}</span>
         <span className="tabular-nums" style={{ color: "var(--orbis-accent)" }}>{format(value)}</span>
       </div>
       <input
@@ -239,6 +267,9 @@ function Slider({
         onChange={(e) => onChange(parseFloat(e.target.value))}
         className="orbis-slider w-full"
       />
+      {hint && (
+        <p className="text-[10.5px] leading-snug" style={{ color: "var(--orbis-text-muted)", opacity: 0.7 }}>{hint}</p>
+      )}
       <style>{`
         .orbis-slider {
           -webkit-appearance: none;
