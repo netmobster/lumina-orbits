@@ -1,6 +1,15 @@
 import { blendColor, randomPaletteColor, rgbPrefixOf } from "./palette";
 import { Circle, SimConfig, radiusOf } from "./types";
 
+export type StepOpts = {
+  /** Multiplier applied to G this frame (default 1). */
+  gravityMultiplier?: number;
+  /** Sign on G this frame (-1 = repulsive, default 1). */
+  gravitySign?: number;
+  /** Extra invisible attractor (e.g. transient black hole). */
+  extraAttractor?: { x: number; y: number; mass: number } | null;
+};
+
 let _id = 1;
 const nextId = () => _id++;
 
@@ -75,8 +84,17 @@ export function spawnFromEdge(w: number, h: number): Circle {
 
 const MIN_DIST = 4;
 
-export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h: number): Circle[] {
+export function step(
+  circles: Circle[],
+  cfg: SimConfig,
+  dt: number,
+  w: number,
+  h: number,
+  opts: StepOpts = {},
+): Circle[] {
   const n = circles.length;
+  const gMul = (opts.gravityMultiplier ?? 1) * (opts.gravitySign ?? 1);
+  const Geff = cfg.G * gMul;
 
   // clear sticky markers each frame; re-discovered during collision pass
   for (let i = 0; i < n; i++) circles[i].stickyWith.clear();
@@ -90,14 +108,32 @@ export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h
       const dy = b.y - a.y;
       const d2 = Math.max(dx * dx + dy * dy, MIN_DIST * MIN_DIST);
       const d = Math.sqrt(d2);
-      let f = (cfg.G * a.mass * b.mass) / d2;
+      let f = (Geff * a.mass * b.mass) / d2;
       if (f > cfg.maxForce) f = cfg.maxForce;
+      else if (f < -cfg.maxForce) f = -cfg.maxForce;
       const fx = (f * dx) / d;
       const fy = (f * dy) / d;
       a.vx += (fx / a.mass) * dt;
       a.vy += (fy / a.mass) * dt;
       b.vx -= (fx / b.mass) * dt;
       b.vy -= (fy / b.mass) * dt;
+    }
+  }
+
+  // extra attractor (e.g. black hole). Always attractive regardless of opts.gravitySign.
+  if (opts.extraAttractor) {
+    const att = opts.extraAttractor;
+    const Gatt = cfg.G * (opts.gravityMultiplier ?? 1);
+    for (let i = 0; i < n; i++) {
+      const c = circles[i];
+      const dx = att.x - c.x;
+      const dy = att.y - c.y;
+      const d2 = Math.max(dx * dx + dy * dy, MIN_DIST * MIN_DIST);
+      const d = Math.sqrt(d2);
+      let f = (Gatt * att.mass * c.mass) / d2;
+      if (f > cfg.maxForce * 4) f = cfg.maxForce * 4;
+      c.vx += ((f * dx) / d / c.mass) * dt;
+      c.vy += ((f * dy) / d / c.mass) * dt;
     }
   }
 
@@ -217,7 +253,7 @@ export function step(circles: Circle[], cfg: SimConfig, dt: number, w: number, h
 
 export function mergeCircles(a: Circle, b: Circle): Circle {
   const totalMass = a.mass + b.mass;
-  const newMass = totalMass * 0.9; // 10% energy loss
+  const newMass = totalMass * 0.98; // 2% energy loss — allows long-term mass growth
   const x = (a.x * a.mass + b.x * b.mass) / totalMass;
   const y = (a.y * a.mass + b.y * b.mass) / totalMass;
   // conserve momentum
