@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronUp, RotateCcw, Pause, Play, Clock, Orbit, Mountain, Sparkles, Radiation, Star } from "lucide-react";
+import {
+  ChevronDown, ChevronUp, RotateCcw, Pause, Play, Clock, Orbit, Mountain,
+  Sparkles, Radiation, Star, FastForward, Zap, CircleDot, Wind, Flame, Repeat, Bomb,
+} from "lucide-react";
 import type { Preset, SimConfig } from "@/lib/orbis/types";
 import type { EnemyConfig } from "@/lib/orbis/enemies";
 
@@ -18,6 +21,8 @@ type Props = {
   onToggleTrails: (v: boolean) => void;
   enemyConfig: EnemyConfig;
   onEnemyChange: (patch: Partial<EnemyConfig>) => void;
+  onFastForward: () => void;
+  onChaos: (id: string) => void;
 };
 
 export function DebugPanel({
@@ -25,10 +30,23 @@ export function DebugPanel({
   onPreset, activePreset, speed, onSpeed,
   showTrails, onToggleTrails,
   enemyConfig, onEnemyChange,
+  onFastForward, onChaos,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   type Tab = "time" | "planets" | "bg" | "visuals" | "xl" | "radio";
   const [tab, setTab] = useState<Tab>("time");
+  // chaos-agent cooldowns — id -> unlock-at (ms epoch)
+  const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const anyActive = Object.values(cooldowns).some((t) => t > Date.now());
+    if (!anyActive) return;
+    const id = window.setInterval(() => tick((v) => v + 1), 100);
+    return () => window.clearInterval(id);
+  }, [cooldowns]);
+  const startCooldown = (id: string, ms = 5000) => {
+    setCooldowns((c) => ({ ...c, [id]: Date.now() + ms }));
+  };
   const tabs: { id: Tab; label: string; Icon: typeof Clock; badge?: boolean }[] = [
     { id: "time", label: "Time", Icon: Clock },
     { id: "planets", label: "Planets", Icon: Orbit },
@@ -243,6 +261,56 @@ export function DebugPanel({
           </>}
 
           {tab === "radio" && <>
+          <div className="space-y-1.5">
+            <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--orbis-text-muted)" }}>Chaos agents</span>
+            <button
+              onClick={onFastForward}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-[12px] transition-colors hover:bg-white/5"
+              style={{ borderColor: "#d94a4a", color: "#f0d0d0" }}
+            >
+              <FastForward size={13} /> {">> 1 hour"}
+            </button>
+            <div className="grid grid-cols-3 gap-1.5">
+              {([
+                { id: "supernova", label: "Supernova", Icon: Bomb },
+                { id: "blackhole", label: "Black Hole", Icon: CircleDot },
+                { id: "pulse", label: "G Pulse", Icon: Zap },
+                { id: "storm", label: "Asteroids", Icon: Wind },
+                { id: "comet", label: "Comet", Icon: Flame },
+                { id: "inversion", label: "Inversion", Icon: Repeat },
+              ] as const).map(({ id, label, Icon }) => {
+                const until = cooldowns[id] ?? 0;
+                const remaining = Math.max(0, until - Date.now());
+                const onCD = remaining > 0;
+                const pct = onCD ? (1 - remaining / 5000) * 100 : 100;
+                return (
+                  <button
+                    key={id}
+                    disabled={onCD}
+                    onClick={() => { onChaos(id); startCooldown(id); }}
+                    title={label}
+                    aria-label={label}
+                    className="relative flex flex-col items-center justify-center gap-1 overflow-hidden rounded-xl border py-2 text-[10px] transition-colors hover:bg-white/5"
+                    style={{
+                      borderColor: onCD ? "rgba(217,74,74,0.25)" : "rgba(217,74,74,0.5)",
+                      color: onCD ? "rgba(240,208,208,0.4)" : "#f0d0d0",
+                      cursor: onCD ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {onCD && (
+                      <div
+                        className="absolute inset-x-0 bottom-0 h-[2px]"
+                        style={{ width: `${pct}%`, background: "#d94a4a", transition: "width 100ms linear" }}
+                      />
+                    )}
+                    <Icon size={14} />
+                    <span>{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <Toggle label="Enemies" checked={enemyConfig.enabled} onChange={(v) => onEnemyChange({ enabled: v })} />
           <Slider label="Wave rate (s)" hint="Seconds between enemy waves. Lower = relentless (min 1.5s = ~3× faster spawning)."
             min={1.5} max={60} step={0.5} value={enemyConfig.waveRate}
