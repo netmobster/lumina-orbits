@@ -3,6 +3,7 @@ import { DebugPanel } from "./DebugPanel";
 import { MusicControl } from "./MusicControl";
 import { BackgroundAura } from "./BackgroundAura";
 import { LoadingOrb } from "./LoadingOrb";
+import { StatsHUD } from "./StatsHUD";
 import { findCircleAt, seedCircles, spawnFromEdge, splitCircle, step, mergeCircles } from "@/lib/orbis/sim";
 import { render } from "@/lib/orbis/render";
 import { DEFAULT_CONFIG, PRESETS, type Circle, type Preset, type SimConfig } from "@/lib/orbis/types";
@@ -35,6 +36,7 @@ export function OrbisCanvas() {
   const infectionPulseAccRef = useRef({ t: 0 });
   const pulsesRef = useRef<{ x: number; y: number; bornAt: number }[]>([]);
   const gameOverRef = useRef(false);
+  const simTimeRef = useRef(0);
 
   const [configState, setConfigState] = useState<SimConfig>({ ...DEFAULT_CONFIG, ...PRESETS.orbit });
   const [enemyConfigState, setEnemyConfigState] = useState<EnemyConfig>({ ...DEFAULT_ENEMY_CONFIG });
@@ -47,6 +49,8 @@ export function OrbisCanvas() {
   const [loading, setLoading] = useState(true);
   const [helpOpen, setHelpOpen] = useState(false);
   const [gameOver, setGameOver] = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
+  const [totalMass, setTotalMass] = useState(0);
   const [, force] = useState(0);
 
   // setup
@@ -108,6 +112,7 @@ export function OrbisCanvas() {
       }
 
       if (dt > 0 && !gameOverRef.current) {
+        simTimeRef.current += dt;
         circlesRef.current = step(circlesRef.current, configRef.current, dt, sizeRef.current.w, sizeRef.current.h);
 
         // enemy waves
@@ -183,6 +188,11 @@ export function OrbisCanvas() {
         } else {
           setAvgSpeed(0);
         }
+        let mSum = 0;
+        for (const c of cs) mSum += c.mass;
+        for (const e of enemiesRef.current) mSum += e.mass;
+        setTotalMass(mSum);
+        setElapsedSec(simTimeRef.current);
         fpsAcc = 0; fpsFrames = 0; fpsTimer = 0;
       }
       raf = requestAnimationFrame(loop);
@@ -271,6 +281,9 @@ export function OrbisCanvas() {
     startingMassRef.current = circlesRef.current.reduce((s, c) => s + c.mass, 0);
     gameOverRef.current = false;
     setGameOver(false);
+    simTimeRef.current = 0;
+    setElapsedSec(0);
+    setTotalMass(circlesRef.current.reduce((s, c) => s + c.mass, 0));
     const tctx = trailCtxRef.current;
     if (tctx) tctx.clearRect(0, 0, sizeRef.current.w, sizeRef.current.h);
   };
@@ -332,6 +345,7 @@ export function OrbisCanvas() {
       <canvas ref={canvasRef} className="fixed inset-0 z-10 block cursor-crosshair" />
       <LoadingOrb visible={loading} />
       <MusicControl />
+      <StatsHUD elapsedSec={elapsedSec} totalMass={totalMass} />
       <DebugPanel
         config={configState}
         onChange={handleChange}
