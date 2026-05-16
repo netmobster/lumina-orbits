@@ -14,7 +14,13 @@ export type Circle = {
   color: { core: string; shadow: string };
   flashUntil: number;
   stickyWith: Set<number>;
-  trail: { x: number; y: number }[];
+  /** previous frame position — used to draw a single segment into the trail buffer */
+  px: number;
+  py: number;
+  /** cached √mass*4 — recompute on mass change */
+  radius: number;
+  /** cached "r,g,b" prefix for rgba() string building */
+  rgbPrefix: string;
 };
 
 export type SimConfig = {
