@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, RotateCcw, Pause, Play } from "lucide-react";
+import { ChevronDown, ChevronUp, RotateCcw, Pause, Play, Clock, Orbit, Mountain, Sparkles, Radiation } from "lucide-react";
 import type { Preset, SimConfig } from "@/lib/orbis/types";
 
 type Props = {
@@ -23,6 +23,15 @@ export function DebugPanel({
   showTrails, onToggleTrails,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
+  type Tab = "time" | "planets" | "bg" | "visuals" | "xl";
+  const [tab, setTab] = useState<Tab>("time");
+  const tabs: { id: Tab; label: string; Icon: typeof Clock }[] = [
+    { id: "time", label: "Time", Icon: Clock },
+    { id: "planets", label: "Planets", Icon: Orbit },
+    { id: "bg", label: "Background", Icon: Mountain },
+    { id: "visuals", label: "Visuals", Icon: Sparkles },
+    { id: "xl", label: "Experimental", Icon: Radiation },
+  ];
 
   return (
     <div
@@ -54,6 +63,29 @@ export function DebugPanel({
 
       {!collapsed && (
         <div className="space-y-4 px-4 pb-4">
+          {/* Tabs */}
+          <div className="grid grid-cols-5 gap-1.5">
+            {tabs.map(({ id, label, Icon }) => {
+              const active = tab === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setTab(id)}
+                  title={label}
+                  aria-label={label}
+                  className="flex items-center justify-center rounded-xl border py-1.5 transition-colors hover:bg-white/5"
+                  style={{
+                    borderColor: active ? "var(--orbis-accent)" : "var(--orbis-hairline)",
+                    color: active ? "var(--orbis-accent)" : "var(--orbis-text-muted)",
+                  }}
+                >
+                  <Icon size={14} />
+                </button>
+              );
+            })}
+          </div>
+
+          {tab === "time" && <>
           {/* Presets */}
           <div className="space-y-1.5">
             <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--orbis-text-muted)" }}>Preset</span>
@@ -106,7 +138,9 @@ export function DebugPanel({
               ))}
             </div>
           </div>
+          </>}
 
+          {tab === "planets" && <>
           <Slider label="Attraction (G)" min={0} max={1} step={0.01} value={config.G}
             onChange={(v) => onChange({ G: v })} format={(v) => v.toFixed(2)} />
           <Slider label="Max force" min={10} max={300} step={5} value={config.maxForce}
@@ -117,10 +151,16 @@ export function DebugPanel({
             onChange={(v) => onChange({ mergeThreshold: v })} format={(v) => v.toFixed(0)} />
           <Slider label="Spawn rate (s)" min={3} max={1000} step={1} value={config.spawnRate}
             onChange={(v) => onChange({ spawnRate: v })} format={(v) => v.toFixed(0)} />
+          </>}
+
+          {tab === "bg" && <>
           <Slider label="Aura intensity" min={1} max={10} step={0.1} value={config.auraIntensity}
             onChange={(v) => onChange({ auraIntensity: v })} format={(v) => v.toFixed(1)} />
           <Slider label="Ribbon drift" min={0} max={5} step={0.1} value={config.ribbonDrift}
             onChange={(v) => onChange({ ribbonDrift: v })} format={(v) => v.toFixed(1) + "×"} />
+          </>}
+
+          {tab === "visuals" && <>
           <Slider label="Trail length" min={10} max={2000} step={10} value={config.trailLength}
             onChange={(v) => onChange({ trailLength: v })} format={(v) => v.toFixed(0)} />
           <Slider label="Trail visibility" min={1} max={200} step={1} value={config.trailOpacity}
@@ -129,13 +169,15 @@ export function DebugPanel({
             onChange={(v) => onChange({ glowSoftness: v })} format={(v) => v.toFixed(1) + "×"} />
           <Slider label="Tail fade rate" min={0.3} max={4} step={0.05} value={config.tailFadeRate}
             onChange={(v) => onChange({ tailFadeRate: v })} format={(v) => v.toFixed(2)} />
-          <Slider label="Split randomness" min={0} max={2} step={0.05} value={config.splitRate}
-            onChange={(v) => onChange({ splitRate: v })} format={(v) => v.toFixed(2) + "/s"} />
-
-          {/* Toggles */}
           <div className="space-y-1.5">
             <Toggle label="Motion trails" checked={showTrails} onChange={onToggleTrails} />
           </div>
+          </>}
+
+          {tab === "xl" && <>
+          <Slider label="Split randomness" min={0} max={2} step={0.05} value={config.splitRate}
+            onChange={(v) => onChange({ splitRate: v })} format={(v) => v.toFixed(2) + "/s"} />
+          </>}
 
           <button
             onClick={onReset}

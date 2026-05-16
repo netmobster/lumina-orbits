@@ -1,51 +1,31 @@
-# Replace `drift` with `CHAOS` preset + auto-split slider
+# Tabbed debug panel
 
-## 1. New `chaos` preset
+Replace the long scrolling list of sliders with 5 icon-only tabs at the top of the panel. Header (fps/count/speed) and Reset button stay; only the slider section is tabbed.
 
-In `src/lib/orbis/types.ts`:
+## Tab layout
 
-- Change `Preset` type: `"drift"` → `"chaos"`.
-- Replace the `drift` entry in `PRESETS` with an extreme `chaos` entry:
-  - `G: 0.7` (strong gravity → wild slingshots)
-  - `damping: 1.0` (no energy loss)
-  - `mergeThreshold: 15` (frequent merges)
-  - `maxForce: 400` (allow violent kicks)
-  - `spawnRate: 15` (constant new bodies)
-  - `auraIntensity: 10`, `ribbonDrift: 5`
-  - `trailLength: 1400`, `trailOpacity: 200` (max visuals)
-  - `glowSoftness: 6`, `tailFadeRate: 0.4` (long, slow-fading glowing tails)
-  - `splitRate: 0.6` (new field, see §2)
-  - `speed: 8`
+5 equal-width buttons in a `grid-cols-5` row, icon-only (16px), active tab gets the accent border + color treatment already used by preset buttons. Tooltip via native `title` attribute so hover reveals the name.
 
-## 2. New `splitRate` slider (random auto-splits)
+| Tab | Icon (lucide) | Contains |
+|---|---|---|
+| TIME | `Clock` | Preset picker, pause/play + speed multipliers |
+| PLANETS | `Orbit` | Attraction (G), Max force, Damping, Merge threshold, Spawn rate |
+| BG | `Mountain` | Aura intensity, Ribbon drift |
+| VISUALS | `Sparkles` | Trail length, Trail visibility, Glow softness, Tail fade rate, Motion trails toggle |
+| XL | `Radiation` | Split randomness (and future experimental sliders) |
 
-Add `splitRate: number` to `SimConfig` (0–2, default `0`, meaning splits per second across the whole field).
+## Implementation
 
-In `src/lib/orbis/sim.ts` `step(...)`:
+Single file: `src/components/orbis/DebugPanel.tsx`.
 
-- Each frame, with probability `splitRate * dt`, pick a random circle with `mass > ~6` and call existing `splitCircle(c)`, replacing it with the two halves (mirroring the right-click split path).
-- Skip if circle count is already at a sane cap (e.g. 80) to avoid runaway.
+- Add `const [tab, setTab] = useState<"time"|"planets"|"bg"|"visuals"|"xl">("time")`.
+- Render icon-only tab bar just below the collapsed header.
+- Wrap each existing slider group in `{tab === "..." && (...)}` blocks — no logic changes, just regrouping the existing JSX.
+- Keep Reset button + help text below the tab content, always visible.
+- Active tab styling reuses preset button style (accent border + accent text).
 
-In `src/components/orbis/DebugPanel.tsx`:
-
-- Add slider "Split randomness" 0–2 step 0.05, formatted `×/s`.
-- Replace the `"drift"` entry in the preset button list with `"chaos"` (label uppercase "CHAOS").
-
-In `src/components/orbis/OrbisCanvas.tsx`:
-
-- Default preset stays `orbit`; just update any `"drift"` references (none in render path beyond types).
-
-## 3. Suggested extras (asking before building)
-
-You asked "Can you figure out/suggest what" — I'd add these to really push the extremes, let me know which to include:
-
-- **Burst spawn on preset switch**: when CHAOS is activated, immediately seed ~25 extra circles with random velocities, so it kicks off chaotic instead of ramping up.
-- **Random velocity kicks**: a `turbulence` slider (0–1) that every ~0.5s adds a small random impulse to a random subset of circles.
-- **Mass-jitter on split**: instead of 50/50 split, randomize 30/70 → 70/30 so fragments are uneven and orbits get weirder.
+No changes to types, sim, or canvas.
 
 ## Files touched
 
-- `src/lib/orbis/types.ts` — rename preset, add `splitRate`, retune `chaos`.
-- `src/lib/orbis/sim.ts` — random auto-split inside `step`.
-- `src/components/orbis/DebugPanel.tsx` — preset label + new slider.
-- `src/components/orbis/OrbisCanvas.tsx` — preset key rename only.
+- `src/components/orbis/DebugPanel.tsx`
