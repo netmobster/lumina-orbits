@@ -90,6 +90,27 @@ export function spawnFromEdge(w: number, h: number): Circle {
 
 const MIN_DIST = 4;
 
+/** Build a uniform-grid broad-phase index for `circles`. */
+function buildGrid(circles: Circle[]) {
+  const n = circles.length;
+  let maxR = 8;
+  for (let i = 0; i < n; i++) if (circles[i].radius > maxR) maxR = circles[i].radius;
+  const cell = Math.max(32, maxR * 4);
+  const buckets = new Map<number, number[]>();
+  const coords = new Int32Array(n * 2);
+  for (let i = 0; i < n; i++) {
+    const cx = Math.floor(circles[i].x / cell);
+    const cy = Math.floor(circles[i].y / cell);
+    coords[i * 2] = cx;
+    coords[i * 2 + 1] = cy;
+    const k = (cx * 73856093) ^ (cy * 19349663);
+    let b = buckets.get(k);
+    if (!b) { b = []; buckets.set(k, b); }
+    b.push(i);
+  }
+  return { buckets, coords, cell };
+}
+
 export function step(
   circles: Circle[],
   cfg: SimConfig,
@@ -105,26 +126,42 @@ export function step(
   // clear sticky markers each frame; re-discovered during collision pass
   for (let i = 0; i < n; i++) circles[i].stickyWith.clear();
 
-  // forces
-  for (let i = 0; i < n; i++) {
-    const a = circles[i];
-    for (let j = i + 1; j < n; j++) {
-      const b = circles[j];
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const d2 = Math.max(dx * dx + dy * dy, MIN_DIST * MIN_DIST);
-      const d = Math.sqrt(d2);
-      let f = (Geff * a.mass * b.mass) / d2;
-      if (f > cfg.maxForce) f = cfg.maxForce;
-      else if (f < -cfg.maxForce) f = -cfg.maxForce;
-      const fx = (f * dx) / d;
-      const fy = (f * dy) / d;
-      a.vx += (fx / a.mass) * dt;
-      a.vy += (fy / a.mass) * dt;
-      b.vx -= (fx / b.mass) * dt;
-      b.vy -= (fy / b.mass) * dt;
+  // broad-phase grid (shared by forces + collisions)
+  const { buckets, coords } = buildGrid(circles);
+  const visitPairs = (cb: (i: number, j: number) => void | boolean) => {
+    for (let i = 0; i < n; i++) {
+      const cx = coords[i * 2], cy = coords[i * 2 + 1];
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const b = buckets.get(((cx + dx) * 73856093) ^ ((cy + dy) * 19349663));
+          if (!b) continue;
+          for (let k = 0; k < b.length; k++) {
+            const j = b[k];
+            if (j <= i) continue;
+            if (cb(i, j) === false) break;
+          }
+        }
+      }
     }
-  }
+  };
+
+  // forces
+  visitPairs((i, j) => {
+    const a = circles[i], b = circles[j];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const d2 = Math.max(dx * dx + dy * dy, MIN_DIST * MIN_DIST);
+    const d = Math.sqrt(d2);
+    let f = (Geff * a.mass * b.mass) / d2;
+    if (f > cfg.maxForce) f = cfg.maxForce;
+    else if (f < -cfg.maxForce) f = -cfg.maxForce;
+    const fx = (f * dx) / d;
+    const fy = (f * dy) / d;
+    a.vx += (fx / a.mass) * dt;
+    a.vy += (fy / a.mass) * dt;
+    b.vx -= (fx / b.mass) * dt;
+    b.vy -= (fy / b.mass) * dt;
+  });
 
   // extra attractor (e.g. black hole). Always attractive regardless of opts.gravitySign.
   if (opts.extraAttractor) {
@@ -179,13 +216,25 @@ export function step(
   const shatterActive = !!opts.shatterActive;
   const coalesceActive = !!opts.coalesceActive;
   const pulsesOut = opts.pulsesOut;
+  // re-grid after integration moved bodies
+  const grid2 = buildGrid(circles);
+  const buckets2 = grid2.buckets;
+  const coords2 = grid2.coords;
   for (let i = 0; i < n; i++) {
     const a = circles[i];
     if (mergedIds.has(a.id)) continue;
-    for (let j = i + 1; j < n; j++) {
-      const b = circles[j];
-      if (mergedIds.has(b.id)) continue;
-      const dx = b.x - a.x;
+    const cx = coords2[i * 2], cy = coords2[i * 2 + 1];
+    let consumed = false;
+    for (let ddx = -1; ddx <= 1 && !consumed; ddx++) {
+      for (let ddy = -1; ddy <= 1 && !consumed; ddy++) {
+        const bucket = buckets2.get(((cx + ddx) * 73856093) ^ ((cy + ddy) * 19349663));
+        if (!bucket) continue;
+        for (let bi = 0; bi < bucket.length; bi++) {
+          const j = bucket[bi];
+          if (j <= i) continue;
+          const b = circles[j];
+          if (mergedIds.has(b.id)) continue;
+          const dx = b.x - a.x;
       const dy = b.y - a.y;
       const d = Math.hypot(dx, dy) || 0.0001;
       const ra = radiusOf(a.mass), rb = radiusOf(b.mass);
@@ -217,6 +266,7 @@ export function step(
             mergedIds.add(a.id);
             mergedIds.add(b.id);
             newCircles.push(merged);
+            consumed = true;
             break;
           }
         } else {
@@ -247,6 +297,7 @@ export function step(
               if (typeof window !== "undefined") {
                 window.dispatchEvent(new CustomEvent("orbis:sfx:collision"));
               }
+              consumed = true;
               break;
             }
             const e = 0.6;
@@ -260,6 +311,8 @@ export function step(
               window.dispatchEvent(new CustomEvent("orbis:sfx:collision"));
             }
           }
+        }
+      }
         }
       }
     }
@@ -452,8 +505,14 @@ export function triggerSupernova(circles: Circle[]): Circle[] {
  * diameter of each other and merge each cluster into one body. Greedy from
  * largest outward. Pushes a "shatter" pulse at each group centroid.
  */
-export function fusionCascade(circles: Circle[], pulsesOut?: Pulse[]): Circle[] {
+export function fusionCascade(
+  circles: Circle[],
+  pulsesOut?: Pulse[],
+  opts: { massRatio?: number; reachMultiplier?: number } = {},
+): Circle[] {
   if (circles.length < 2) return circles;
+  const minRatio = opts.massRatio ?? 0.8;
+  const reachMul = opts.reachMultiplier ?? 2;
   const sorted = [...circles].sort((a, b) => b.mass - a.mass);
   const consumed = new Set<number>();
   const newOnes: Circle[] = [];
@@ -461,7 +520,7 @@ export function fusionCascade(circles: Circle[], pulsesOut?: Pulse[]): Circle[] 
   for (const a of sorted) {
     if (consumed.has(a.id)) continue;
     if (a.infected) continue;
-    const reach = a.radius * 2;
+    const reach = a.radius * reachMul;
     const reach2 = reach * reach;
     const group: Circle[] = [];
     for (const b of sorted) {
@@ -469,7 +528,7 @@ export function fusionCascade(circles: Circle[], pulsesOut?: Pulse[]): Circle[] 
       if (consumed.has(b.id)) continue;
       if (b.infected) continue;
       const ratio = Math.min(a.mass, b.mass) / Math.max(a.mass, b.mass);
-      if (ratio < 0.8) continue;
+      if (ratio < minRatio) continue;
       const dx = b.x - a.x, dy = b.y - a.y;
       if (dx * dx + dy * dy > reach2) continue;
       group.push(b);
@@ -490,6 +549,63 @@ export function fusionCascade(circles: Circle[], pulsesOut?: Pulse[]): Circle[] 
   }
   if (consumed.size === 0) return circles;
   return circles.filter((c) => !consumed.has(c.id)).concat(newOnes);
+}
+
+/** Forced nearest-neighbor merge: smallest first, merges with closest other body.
+ * Guarantees population drops. Used as the floor of the cap-enforcer ladder. */
+function forcedNearestMerge(circles: Circle[]): Circle[] {
+  if (circles.length < 2) return circles;
+  const sorted = [...circles].sort((a, b) => a.mass - b.mass);
+  const consumed = new Set<number>();
+  const newOnes: Circle[] = [];
+  for (const a of sorted) {
+    if (consumed.has(a.id)) continue;
+    if (a.infected) continue;
+    let best: Circle | null = null;
+    let bestD2 = Infinity;
+    for (const b of sorted) {
+      if (b.id === a.id) continue;
+      if (consumed.has(b.id)) continue;
+      if (b.infected) continue;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) { bestD2 = d2; best = b; }
+    }
+    if (!best) continue;
+    consumed.add(a.id);
+    consumed.add(best.id);
+    newOnes.push(mergeCircles(a, best));
+  }
+  if (consumed.size === 0) return circles;
+  return circles.filter((c) => !consumed.has(c.id)).concat(newOnes);
+}
+
+/**
+ * Enforce a hard population cap by collapsing bodies into bigger ones.
+ * Ladder: strict fusion → loose fusion → forced nearest merge.
+ * Target: ≤ cap * 0.5. Up to 4 passes; aborts if no progress.
+ */
+export function enforcePopulationCap(
+  circles: Circle[],
+  cap: number,
+  pulsesOut?: Pulse[],
+): Circle[] {
+  if (circles.length <= cap) return circles;
+  const target = Math.floor(cap * 0.5);
+  let cur = circles;
+  for (let pass = 0; pass < 4 && cur.length > target; pass++) {
+    const before = cur.length;
+    // strict
+    cur = fusionCascade(cur, pulsesOut, { massRatio: 0.8, reachMultiplier: 2 });
+    if (cur.length <= target) break;
+    // loose
+    cur = fusionCascade(cur, pulsesOut, { massRatio: 0.5, reachMultiplier: 4 });
+    if (cur.length <= target) break;
+    // forced
+    cur = forcedNearestMerge(cur);
+    if (cur.length >= before) break; // no progress, bail
+  }
+  return cur;
 }
 
 /** Spawn a single fast comet streaking across the canvas. */

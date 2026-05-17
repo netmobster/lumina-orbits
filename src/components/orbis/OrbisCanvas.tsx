@@ -8,6 +8,7 @@ import { StatsHUD } from "./StatsHUD";
 import {
   findCircleAt, seedCircles, spawnFromEdge, splitCircle, step, mergeCircles, ejectFragments,
   triggerSupernova, spawnComet, spawnAsteroidBurst, fusionCascade,
+  enforcePopulationCap,
 } from "@/lib/orbis/sim";
 import { render } from "@/lib/orbis/render";
 import { DEFAULT_CONFIG, PRESETS, type Circle, type Preset, type Pulse, type SimConfig } from "@/lib/orbis/types";
@@ -78,14 +79,25 @@ export function OrbisCanvas() {
     { id: "inversion", weight: 1 },
     { id: "singularity", weight: 1 },
   ];
+  const SPAWN_AGENTS = new Set(["storm", "comet", "shatter"]);
+  const COLLAPSE_AGENTS = new Set(["fusion", "singularity", "blackhole"]);
+  const MAX_BODIES = 220;
   const pickAutoChaos = () => {
-    const total = AUTO_CHAOS_POOL.reduce((s, p) => s + p.weight, 0);
+    const n = circlesRef.current.length;
+    const crowded = n > MAX_BODIES * 0.85;
+    const pool = AUTO_CHAOS_POOL.map((p) => {
+      if (crowded && SPAWN_AGENTS.has(p.id)) return { ...p, weight: 0 };
+      if (crowded && COLLAPSE_AGENTS.has(p.id)) return { ...p, weight: p.weight * 3 };
+      return p;
+    });
+    const total = pool.reduce((s, p) => s + p.weight, 0);
+    if (total <= 0) return "fusion";
     let r = Math.random() * total;
-    for (const p of AUTO_CHAOS_POOL) {
+    for (const p of pool) {
       r -= p.weight;
       if (r <= 0) return p.id;
     }
-    return AUTO_CHAOS_POOL[0].id;
+    return pool[0].id;
   };
 
   const [configState, setConfigState] = useState<SimConfig>({ ...DEFAULT_CONFIG, ...PRESETS.orbit });
@@ -230,6 +242,13 @@ export function OrbisCanvas() {
             pulsesOut: pulsesRef.current,
           },
         );
+        if (circlesRef.current.length > MAX_BODIES) {
+          circlesRef.current = enforcePopulationCap(
+            circlesRef.current,
+            MAX_BODIES,
+            pulsesRef.current,
+          );
+        }
 
         // singularity progression
         if (sing) {
@@ -325,7 +344,7 @@ export function OrbisCanvas() {
                 phase: singularityRef.current.phase,
                 progress:
                   singularityRef.current.phase === "charge"
-                    ? Math.min(1, 1 - (singularityRef.current.chargeUntil - simTimeRef.current) / 1.5)
+                    ? Math.max(0, Math.min(1, 1 - (singularityRef.current.chargeUntil - simTimeRef.current) / 1.5))
                     : 1,
               }
             : null,
@@ -520,38 +539,44 @@ export function OrbisCanvas() {
     setFastForwarding(true);
     setFfProgress(0);
     const { w, h } = sizeRef.current;
-    const CHUNKS = 10;
-    const ITERS_PER_CHUNK = 60;
-    const DT = 1.0;
-    let chunk = 0;
+    const DT = 0.5;
+    const TARGET_SIM_SECONDS = 600; // ~10 sim-minutes, same as before
+    const FRAME_BUDGET_MS = 8;
+    const startSim = simTimeRef.current;
+    let advanced = 0;
     let spawnAcc = spawnAccRef.current;
-    const runChunk = () => {
+    const tick = () => {
+      const tStart = performance.now();
       let cur = circlesRef.current;
-      for (let i = 0; i < ITERS_PER_CHUNK; i++) {
+      while (advanced < TARGET_SIM_SECONDS && performance.now() - tStart < FRAME_BUDGET_MS) {
         cur = step(cur, configRef.current, DT, w, h);
+        if (cur.length > MAX_BODIES) {
+          cur = enforcePopulationCap(cur, MAX_BODIES);
+        }
         spawnAcc += DT;
         if (spawnAcc >= configRef.current.spawnRate) {
           spawnAcc = 0;
           cur = cur.concat(spawnFromEdge(w, h));
         }
+        advanced += DT;
       }
       circlesRef.current = cur;
-      simTimeRef.current += ITERS_PER_CHUNK * DT;
-      chunk++;
-      setFfProgress(chunk / CHUNKS);
-      setElapsedSec(simTimeRef.current);
+      simTimeRef.current = startSim + advanced;
+      // progress + HUD
+      setFfProgress(Math.min(1, advanced / TARGET_SIM_SECONDS));
       let mSum = 0;
       for (const c of cur) mSum += c.mass;
       for (const e of enemiesRef.current) mSum += e.mass;
       setTotalMass(mSum);
-      if (chunk < CHUNKS) {
-        window.setTimeout(runChunk, 0);
+      if (advanced < TARGET_SIM_SECONDS) {
+        requestAnimationFrame(tick);
       } else {
         spawnAccRef.current = spawnAcc;
+        setElapsedSec(simTimeRef.current);
         setFastForwarding(false);
       }
     };
-    window.setTimeout(runChunk, 30);
+    requestAnimationFrame(tick);
   };
 
   const handleChaos = (id: string) => {
