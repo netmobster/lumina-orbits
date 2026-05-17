@@ -79,14 +79,25 @@ export function OrbisCanvas() {
     { id: "inversion", weight: 1 },
     { id: "singularity", weight: 1 },
   ];
+  const SPAWN_AGENTS = new Set(["storm", "comet", "shatter"]);
+  const COLLAPSE_AGENTS = new Set(["fusion", "singularity", "blackhole"]);
+  const MAX_BODIES = 220;
   const pickAutoChaos = () => {
-    const total = AUTO_CHAOS_POOL.reduce((s, p) => s + p.weight, 0);
+    const n = circlesRef.current.length;
+    const crowded = n > MAX_BODIES * 0.85;
+    const pool = AUTO_CHAOS_POOL.map((p) => {
+      if (crowded && SPAWN_AGENTS.has(p.id)) return { ...p, weight: 0 };
+      if (crowded && COLLAPSE_AGENTS.has(p.id)) return { ...p, weight: p.weight * 3 };
+      return p;
+    });
+    const total = pool.reduce((s, p) => s + p.weight, 0);
+    if (total <= 0) return "fusion";
     let r = Math.random() * total;
-    for (const p of AUTO_CHAOS_POOL) {
+    for (const p of pool) {
       r -= p.weight;
       if (r <= 0) return p.id;
     }
-    return AUTO_CHAOS_POOL[0].id;
+    return pool[0].id;
   };
 
   const [configState, setConfigState] = useState<SimConfig>({ ...DEFAULT_CONFIG, ...PRESETS.orbit });
