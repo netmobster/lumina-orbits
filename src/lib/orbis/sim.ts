@@ -573,6 +573,7 @@ function forcedNearestMerge(circles: Circle[]): Circle[] {
   for (const a of sorted) {
     if (consumed.has(a.id)) continue;
     if (a.infected) continue;
+    if (a.binaryWith != null) continue;
     let bestBig: Circle | null = null;
     let bestBigD2 = Infinity;
     let bestAny: Circle | null = null;
@@ -582,6 +583,7 @@ function forcedNearestMerge(circles: Circle[]): Circle[] {
       if (b.id === a.id) continue;
       if (consumed.has(b.id)) continue;
       if (b.infected) continue;
+      if (b.binaryWith != null) continue;
       const dx = b.x - a.x, dy = b.y - a.y;
       const d2 = dx * dx + dy * dy;
       if (d2 < bestAnyD2) { bestAnyD2 = d2; bestAny = b; }
