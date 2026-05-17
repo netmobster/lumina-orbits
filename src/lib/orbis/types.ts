@@ -43,6 +43,8 @@ export type SimConfig = {
   tailFadeRate: number;
   splitRate: number;
   xlEnabled: boolean;
+  /** Seconds between auto-fired random chaos agents. Always on. */
+  autoChaosInterval: number;
 };
 
 export const DEFAULT_CONFIG: SimConfig = {
@@ -59,6 +61,7 @@ export const DEFAULT_CONFIG: SimConfig = {
   tailFadeRate: 1.5,
   splitRate: 0,
   xlEnabled: false,
+  autoChaosInterval: 20,
 };
 
 export const radiusOf = (mass: number) => Math.sqrt(mass) * 4;
