@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import {
   ChevronDown, ChevronUp, RotateCcw, Pause, Play, Clock, Orbit, Mountain,
-  Sparkles, Radiation, Star, FastForward, Zap, CircleDot, Wind, Flame, Repeat, Bomb,
+  Sparkles, Radiation, Star, FastForward, Zap, CircleDot, Wind, Flame, Repeat, Bomb, Magnet, Atom,
 } from "lucide-react";
 import type { Preset, SimConfig } from "@/lib/orbis/types";
 import type { EnemyConfig } from "@/lib/orbis/enemies";
+import type { Scenario } from "@/lib/orbis/scenarios";
 
 type Props = {
   config: SimConfig;
@@ -23,6 +24,9 @@ type Props = {
   onEnemyChange: (patch: Partial<EnemyConfig>) => void;
   onFastForward: () => void;
   onChaos: (id: string) => void;
+  scenarios: Scenario[];
+  activeScenarioId: string | null;
+  onScenario: (id: string | null) => void;
 };
 
 export function DebugPanel({
@@ -31,6 +35,7 @@ export function DebugPanel({
   showTrails, onToggleTrails,
   enemyConfig, onEnemyChange,
   onFastForward, onChaos,
+  scenarios, activeScenarioId, onScenario,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   type Tab = "time" | "planets" | "bg" | "visuals" | "xl" | "radio";
