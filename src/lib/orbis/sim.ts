@@ -90,6 +90,48 @@ export function spawnFromEdge(w: number, h: number): Circle {
 
 const MIN_DIST = 4;
 
+/** Uniform-grid broad phase. Returns the unique unordered pairs (i,j) whose
+ * bodies might interact (same cell or 8-neighbor cells). */
+function buildPairs(circles: Circle[]): Array<[number, number]> {
+  const n = circles.length;
+  // cell size = 2x largest radius, with sane floor
+  let maxR = 8;
+  for (let i = 0; i < n; i++) if (circles[i].radius > maxR) maxR = circles[i].radius;
+  const cell = Math.max(32, maxR * 4);
+  const buckets = new Map<number, number[]>();
+  const key = (cx: number, cy: number) => cx * 73856093 ^ cy * 19349663;
+  const coords = new Int32Array(n * 2);
+  for (let i = 0; i < n; i++) {
+    const cx = Math.floor(circles[i].x / cell);
+    const cy = Math.floor(circles[i].y / cell);
+    coords[i * 2] = cx;
+    coords[i * 2 + 1] = cy;
+    const k = key(cx, cy);
+    let b = buckets.get(k);
+    if (!b) { b = []; buckets.set(k, b); }
+    b.push(i);
+  }
+  const pairs: Array<[number, number]> = [];
+  const seen = new Set<number>();
+  for (let i = 0; i < n; i++) {
+    const cx = coords[i * 2], cy = coords[i * 2 + 1];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const b = buckets.get(key(cx + dx, cy + dy));
+        if (!b) continue;
+        for (const j of b) {
+          if (j <= i) continue;
+          const pk = i * 100000 + j;
+          if (seen.has(pk)) continue;
+          seen.add(pk);
+          pairs.push([i, j]);
+        }
+      }
+    }
+  }
+  return pairs;
+}
+
 export function step(
   circles: Circle[],
   cfg: SimConfig,
