@@ -126,26 +126,42 @@ export function step(
   // clear sticky markers each frame; re-discovered during collision pass
   for (let i = 0; i < n; i++) circles[i].stickyWith.clear();
 
-  // forces
-  for (let i = 0; i < n; i++) {
-    const a = circles[i];
-    for (let j = i + 1; j < n; j++) {
-      const b = circles[j];
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const d2 = Math.max(dx * dx + dy * dy, MIN_DIST * MIN_DIST);
-      const d = Math.sqrt(d2);
-      let f = (Geff * a.mass * b.mass) / d2;
-      if (f > cfg.maxForce) f = cfg.maxForce;
-      else if (f < -cfg.maxForce) f = -cfg.maxForce;
-      const fx = (f * dx) / d;
-      const fy = (f * dy) / d;
-      a.vx += (fx / a.mass) * dt;
-      a.vy += (fy / a.mass) * dt;
-      b.vx -= (fx / b.mass) * dt;
-      b.vy -= (fy / b.mass) * dt;
+  // broad-phase grid (shared by forces + collisions)
+  const { buckets, coords } = buildGrid(circles);
+  const visitPairs = (cb: (i: number, j: number) => void | boolean) => {
+    for (let i = 0; i < n; i++) {
+      const cx = coords[i * 2], cy = coords[i * 2 + 1];
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const b = buckets.get(((cx + dx) * 73856093) ^ ((cy + dy) * 19349663));
+          if (!b) continue;
+          for (let k = 0; k < b.length; k++) {
+            const j = b[k];
+            if (j <= i) continue;
+            if (cb(i, j) === false) break;
+          }
+        }
+      }
     }
-  }
+  };
+
+  // forces
+  visitPairs((i, j) => {
+    const a = circles[i], b = circles[j];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const d2 = Math.max(dx * dx + dy * dy, MIN_DIST * MIN_DIST);
+    const d = Math.sqrt(d2);
+    let f = (Geff * a.mass * b.mass) / d2;
+    if (f > cfg.maxForce) f = cfg.maxForce;
+    else if (f < -cfg.maxForce) f = -cfg.maxForce;
+    const fx = (f * dx) / d;
+    const fy = (f * dy) / d;
+    a.vx += (fx / a.mass) * dt;
+    a.vy += (fy / a.mass) * dt;
+    b.vx -= (fx / b.mass) * dt;
+    b.vy -= (fy / b.mass) * dt;
+  });
 
   // extra attractor (e.g. black hole). Always attractive regardless of opts.gravitySign.
   if (opts.extraAttractor) {
@@ -200,13 +216,25 @@ export function step(
   const shatterActive = !!opts.shatterActive;
   const coalesceActive = !!opts.coalesceActive;
   const pulsesOut = opts.pulsesOut;
+  // re-grid after integration moved bodies
+  const grid2 = buildGrid(circles);
+  const buckets2 = grid2.buckets;
+  const coords2 = grid2.coords;
   for (let i = 0; i < n; i++) {
     const a = circles[i];
     if (mergedIds.has(a.id)) continue;
-    for (let j = i + 1; j < n; j++) {
-      const b = circles[j];
-      if (mergedIds.has(b.id)) continue;
-      const dx = b.x - a.x;
+    const cx = coords2[i * 2], cy = coords2[i * 2 + 1];
+    let consumed = false;
+    for (let ddx = -1; ddx <= 1 && !consumed; ddx++) {
+      for (let ddy = -1; ddy <= 1 && !consumed; ddy++) {
+        const bucket = buckets2.get(((cx + ddx) * 73856093) ^ ((cy + ddy) * 19349663));
+        if (!bucket) continue;
+        for (let bi = 0; bi < bucket.length; bi++) {
+          const j = bucket[bi];
+          if (j <= i) continue;
+          const b = circles[j];
+          if (mergedIds.has(b.id)) continue;
+          const dx = b.x - a.x;
       const dy = b.y - a.y;
       const d = Math.hypot(dx, dy) || 0.0001;
       const ra = radiusOf(a.mass), rb = radiusOf(b.mass);
@@ -238,6 +266,7 @@ export function step(
             mergedIds.add(a.id);
             mergedIds.add(b.id);
             newCircles.push(merged);
+            consumed = true;
             break;
           }
         } else {
@@ -268,6 +297,7 @@ export function step(
               if (typeof window !== "undefined") {
                 window.dispatchEvent(new CustomEvent("orbis:sfx:collision"));
               }
+              consumed = true;
               break;
             }
             const e = 0.6;
@@ -281,6 +311,8 @@ export function step(
               window.dispatchEvent(new CustomEvent("orbis:sfx:collision"));
             }
           }
+        }
+      }
         }
       }
     }
