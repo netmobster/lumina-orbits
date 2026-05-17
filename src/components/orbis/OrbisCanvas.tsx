@@ -80,6 +80,7 @@ export function OrbisCanvas() {
   const [totalMass, setTotalMass] = useState(0);
   const [fastForwarding, setFastForwarding] = useState(false);
   const [ffProgress, setFfProgress] = useState(0);
+  const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
   const [, force] = useState(0);
 
   // setup
