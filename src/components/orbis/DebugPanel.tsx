@@ -283,6 +283,9 @@ export function DebugPanel({
                 { id: "storm", label: "Asteroids", Icon: Wind },
                 { id: "comet", label: "Comet", Icon: Flame },
                 { id: "inversion", label: "Inversion", Icon: Repeat },
+                { id: "shatter", label: "Shatter", Icon: Sparkles },
+                { id: "singularity", label: "Singularity", Icon: Atom },
+                { id: "coalesce", label: "Coalesce", Icon: Magnet },
               ] as const).map(({ id, label, Icon }) => {
                 const until = cooldowns[id] ?? 0;
                 const remaining = Math.max(0, until - Date.now());
