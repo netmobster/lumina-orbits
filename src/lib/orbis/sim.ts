@@ -505,8 +505,14 @@ export function triggerSupernova(circles: Circle[]): Circle[] {
  * diameter of each other and merge each cluster into one body. Greedy from
  * largest outward. Pushes a "shatter" pulse at each group centroid.
  */
-export function fusionCascade(circles: Circle[], pulsesOut?: Pulse[]): Circle[] {
+export function fusionCascade(
+  circles: Circle[],
+  pulsesOut?: Pulse[],
+  opts: { massRatio?: number; reachMultiplier?: number } = {},
+): Circle[] {
   if (circles.length < 2) return circles;
+  const minRatio = opts.massRatio ?? 0.8;
+  const reachMul = opts.reachMultiplier ?? 2;
   const sorted = [...circles].sort((a, b) => b.mass - a.mass);
   const consumed = new Set<number>();
   const newOnes: Circle[] = [];
@@ -514,7 +520,7 @@ export function fusionCascade(circles: Circle[], pulsesOut?: Pulse[]): Circle[] 
   for (const a of sorted) {
     if (consumed.has(a.id)) continue;
     if (a.infected) continue;
-    const reach = a.radius * 2;
+    const reach = a.radius * reachMul;
     const reach2 = reach * reach;
     const group: Circle[] = [];
     for (const b of sorted) {
@@ -522,7 +528,7 @@ export function fusionCascade(circles: Circle[], pulsesOut?: Pulse[]): Circle[] 
       if (consumed.has(b.id)) continue;
       if (b.infected) continue;
       const ratio = Math.min(a.mass, b.mass) / Math.max(a.mass, b.mass);
-      if (ratio < 0.8) continue;
+      if (ratio < minRatio) continue;
       const dx = b.x - a.x, dy = b.y - a.y;
       if (dx * dx + dy * dy > reach2) continue;
       group.push(b);
@@ -543,6 +549,63 @@ export function fusionCascade(circles: Circle[], pulsesOut?: Pulse[]): Circle[] 
   }
   if (consumed.size === 0) return circles;
   return circles.filter((c) => !consumed.has(c.id)).concat(newOnes);
+}
+
+/** Forced nearest-neighbor merge: smallest first, merges with closest other body.
+ * Guarantees population drops. Used as the floor of the cap-enforcer ladder. */
+function forcedNearestMerge(circles: Circle[]): Circle[] {
+  if (circles.length < 2) return circles;
+  const sorted = [...circles].sort((a, b) => a.mass - b.mass);
+  const consumed = new Set<number>();
+  const newOnes: Circle[] = [];
+  for (const a of sorted) {
+    if (consumed.has(a.id)) continue;
+    if (a.infected) continue;
+    let best: Circle | null = null;
+    let bestD2 = Infinity;
+    for (const b of sorted) {
+      if (b.id === a.id) continue;
+      if (consumed.has(b.id)) continue;
+      if (b.infected) continue;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) { bestD2 = d2; best = b; }
+    }
+    if (!best) continue;
+    consumed.add(a.id);
+    consumed.add(best.id);
+    newOnes.push(mergeCircles(a, best));
+  }
+  if (consumed.size === 0) return circles;
+  return circles.filter((c) => !consumed.has(c.id)).concat(newOnes);
+}
+
+/**
+ * Enforce a hard population cap by collapsing bodies into bigger ones.
+ * Ladder: strict fusion → loose fusion → forced nearest merge.
+ * Target: ≤ cap * 0.5. Up to 4 passes; aborts if no progress.
+ */
+export function enforcePopulationCap(
+  circles: Circle[],
+  cap: number,
+  pulsesOut?: Pulse[],
+): Circle[] {
+  if (circles.length <= cap) return circles;
+  const target = Math.floor(cap * 0.5);
+  let cur = circles;
+  for (let pass = 0; pass < 4 && cur.length > target; pass++) {
+    const before = cur.length;
+    // strict
+    cur = fusionCascade(cur, pulsesOut, { massRatio: 0.8, reachMultiplier: 2 });
+    if (cur.length <= target) break;
+    // loose
+    cur = fusionCascade(cur, pulsesOut, { massRatio: 0.5, reachMultiplier: 4 });
+    if (cur.length <= target) break;
+    // forced
+    cur = forcedNearestMerge(cur);
+    if (cur.length >= before) break; // no progress, bail
+  }
+  return cur;
 }
 
 /** Spawn a single fast comet streaking across the canvas. */
