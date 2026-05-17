@@ -39,7 +39,7 @@ export function OrbisCanvas() {
   const wavesFiredRef = useRef(0);
   const startingMassRef = useRef(0);
   const infectionPulseAccRef = useRef({ t: 0 });
-  const pulsesRef = useRef<{ x: number; y: number; bornAt: number }[]>([]);
+  const pulsesRef = useRef<Pulse[]>([]);
   const gameOverRef = useRef(false);
   const simTimeRef = useRef(0);
   // chaos agent effect timers (sim-time deadlines)
@@ -47,6 +47,23 @@ export function OrbisCanvas() {
   const inversionUntilRef = useRef(0);
   const blackHoleUntilRef = useRef(0);
   const blackHolePosRef = useRef<{ x: number; y: number } | null>(null);
+  const shatterUntilRef = useRef(0);
+  const coalesceUntilRef = useRef(0);
+  // singularity state machine
+  const singularityRef = useRef<{
+    x: number;
+    y: number;
+    absorbed: number;
+    color?: { core: string; shadow: string };
+    phase: "charge" | "suck";
+    chargeUntil: number;
+    suckUntil: number;
+  } | null>(null);
+  // scenario script runner
+  const activeScenarioRef = useRef<Scenario | null>(null);
+  const scenarioStartSimTimeRef = useRef(0);
+  const scenarioFiredRef = useRef<Set<number>>(new Set());
+  const handleChaosRef = useRef<((id: string) => void) | null>(null);
 
   const [configState, setConfigState] = useState<SimConfig>({ ...DEFAULT_CONFIG, ...PRESETS.orbit });
   const [enemyConfigState, setEnemyConfigState] = useState<EnemyConfig>({ ...DEFAULT_ENEMY_CONFIG });
