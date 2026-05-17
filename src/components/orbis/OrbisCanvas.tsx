@@ -213,7 +213,7 @@ export function OrbisCanvas() {
         if (sing && sing.phase === "suck" && t < sing.suckUntil) {
           extraAttractor = { x: sing.x, y: sing.y, mass: Math.max(300, sing.absorbed * 1.5) };
         } else if (t < blackHoleUntilRef.current && blackHolePosRef.current) {
-          extraAttractor = { x: blackHolePosRef.current.x, y: blackHolePosRef.current.y, mass: 800 };
+          extraAttractor = { x: blackHolePosRef.current.x, y: blackHolePosRef.current.y, mass: 1040 };
         }
         circlesRef.current = step(
           circlesRef.current,
