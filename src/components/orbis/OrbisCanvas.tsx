@@ -143,22 +143,79 @@ export function OrbisCanvas() {
 
       if (dt > 0 && !gameOverRef.current) {
         simTimeRef.current += dt;
+        // scenario script — fire any step whose `at` has been crossed
+        const sc = activeScenarioRef.current;
+        if (sc?.script) {
+          const elapsedScenario = simTimeRef.current - scenarioStartSimTimeRef.current;
+          for (let i = 0; i < sc.script.length; i++) {
+            const stp = sc.script[i];
+            if (elapsedScenario >= stp.at && !scenarioFiredRef.current.has(i)) {
+              scenarioFiredRef.current.add(i);
+              handleChaosRef.current?.(stp.agent);
+            }
+          }
+        }
         // resolve chaos-agent modifiers for this frame
         const t = simTimeRef.current;
         const gravityMul = t < gravityPulseUntilRef.current ? 5 : 1;
         const gravitySign = t < inversionUntilRef.current ? -1 : 1;
-        const extraAttractor =
-          t < blackHoleUntilRef.current && blackHolePosRef.current
-            ? { x: blackHolePosRef.current.x, y: blackHolePosRef.current.y, mass: 800 }
-            : null;
+        // singularity suck-phase attractor takes precedence over the black-hole agent
+        const sing = singularityRef.current;
+        let extraAttractor: { x: number; y: number; mass: number } | null = null;
+        if (sing && sing.phase === "suck" && t < sing.suckUntil) {
+          extraAttractor = { x: sing.x, y: sing.y, mass: Math.max(300, sing.absorbed * 1.5) };
+        } else if (t < blackHoleUntilRef.current && blackHolePosRef.current) {
+          extraAttractor = { x: blackHolePosRef.current.x, y: blackHolePosRef.current.y, mass: 800 };
+        }
         circlesRef.current = step(
           circlesRef.current,
           configRef.current,
           dt,
           sizeRef.current.w,
           sizeRef.current.h,
-          { gravityMultiplier: gravityMul, gravitySign, extraAttractor },
+          {
+            gravityMultiplier: gravityMul,
+            gravitySign,
+            extraAttractor,
+            shatterActive: t < shatterUntilRef.current,
+            coalesceActive: t < coalesceUntilRef.current,
+            pulsesOut: pulsesRef.current,
+          },
         );
+
+        // singularity progression
+        if (sing) {
+          if (sing.phase === "charge" && t >= sing.chargeUntil) {
+            sing.phase = "suck";
+            sing.suckUntil = t + 2.5;
+          }
+          if (sing.phase === "suck") {
+            const sx = sing.x, sy = sing.y;
+            const kept: Circle[] = [];
+            for (const c of circlesRef.current) {
+              const d = Math.hypot(c.x - sx, c.y - sy);
+              if (d < 30) {
+                sing.absorbed += c.mass;
+              } else {
+                kept.push(c);
+              }
+            }
+            if (kept.length !== circlesRef.current.length) circlesRef.current = kept;
+            if (t >= sing.suckUntil) {
+              const totalOut = sing.absorbed * 0.9;
+              const n = Math.max(8, Math.min(24, Math.round(sing.absorbed / 8)));
+              const frags = ejectFragments(sing.x, sing.y, totalOut, n, sing.color);
+              circlesRef.current = circlesRef.current.concat(frags);
+              pulsesRef.current.push({
+                x: sing.x, y: sing.y, bornAt: now, kind: "singularity-burst",
+              });
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("orbis:sfx:merge"));
+              }
+              singularityRef.current = null;
+            }
+          }
+        }
 
         // enemy waves
         const ecfg = enemyConfigRef.current;
