@@ -381,6 +381,10 @@ export function DebugPanel({
             </div>
           </div>
 
+          <Slider label="Auto-chaos interval" hint="Average seconds between auto-fired random chaos events. The game keeps evolving on its own."
+            min={5} max={60} step={1} value={config.autoChaosInterval}
+            onChange={(v) => onChange({ autoChaosInterval: v })} format={(v) => v.toFixed(0) + "s"} />
+
           <Toggle label="Enemies" checked={enemyConfig.enabled} onChange={(v) => onEnemyChange({ enabled: v })} />
           <Slider label="Wave rate (s)" hint="Seconds between enemy waves. Lower = relentless (min 1.5s = ~3× faster spawning)."
             min={1.5} max={60} step={0.5} value={enemyConfig.waveRate}
