@@ -425,13 +425,13 @@ export function triggerSupernova(circles: Circle[]): Circle[] {
   let big = circles[0];
   for (const c of circles) if (c.mass > big.mass) big = c;
   if (big.mass < 3) return circles;
-  const n = 6 + Math.floor(Math.random() * 5);
+  const n = 8 + Math.floor(Math.random() * 6);
   const fragMass = (big.mass * 0.95) / n;
   const out: Circle[] = [];
   for (let i = 0; i < n; i++) {
     const ang = (i / n) * Math.PI * 2 + Math.random() * 0.3;
     const r = radiusOf(fragMass) + 2;
-    const sp = 120 + Math.random() * 80;
+    const sp = 156 + Math.random() * 104;
     out.push(
       makeCircle({
         x: big.x + Math.cos(ang) * r,
@@ -445,6 +445,51 @@ export function triggerSupernova(circles: Circle[]): Circle[] {
     );
   }
   return circles.filter((c) => c.id !== big.id).concat(out);
+}
+
+/**
+ * Fusion Cascade: scan for clusters of similarly-sized bodies within ~one
+ * diameter of each other and merge each cluster into one body. Greedy from
+ * largest outward. Pushes a "shatter" pulse at each group centroid.
+ */
+export function fusionCascade(circles: Circle[], pulsesOut?: Pulse[]): Circle[] {
+  if (circles.length < 2) return circles;
+  const sorted = [...circles].sort((a, b) => b.mass - a.mass);
+  const consumed = new Set<number>();
+  const newOnes: Circle[] = [];
+  const now = performance.now();
+  for (const a of sorted) {
+    if (consumed.has(a.id)) continue;
+    if (a.infected) continue;
+    const reach = a.radius * 2;
+    const reach2 = reach * reach;
+    const group: Circle[] = [];
+    for (const b of sorted) {
+      if (b.id === a.id) continue;
+      if (consumed.has(b.id)) continue;
+      if (b.infected) continue;
+      const ratio = Math.min(a.mass, b.mass) / Math.max(a.mass, b.mass);
+      if (ratio < 0.8) continue;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      if (dx * dx + dy * dy > reach2) continue;
+      group.push(b);
+    }
+    if (group.length === 0) continue;
+    consumed.add(a.id);
+    let merged = a;
+    let cx = a.x * a.mass, cy = a.y * a.mass, mTot = a.mass;
+    for (const b of group) {
+      consumed.add(b.id);
+      cx += b.x * b.mass; cy += b.y * b.mass; mTot += b.mass;
+      merged = mergeCircles(merged, b);
+    }
+    newOnes.push(merged);
+    if (pulsesOut) {
+      pulsesOut.push({ x: cx / mTot, y: cy / mTot, bornAt: now, kind: "shatter" });
+    }
+  }
+  if (consumed.size === 0) return circles;
+  return circles.filter((c) => !consumed.has(c.id)).concat(newOnes);
 }
 
 /** Spawn a single fast comet streaking across the canvas. */
