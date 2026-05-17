@@ -539,38 +539,50 @@ export function OrbisCanvas() {
     setFastForwarding(true);
     setFfProgress(0);
     const { w, h } = sizeRef.current;
-    const CHUNKS = 10;
-    const ITERS_PER_CHUNK = 60;
-    const DT = 1.0;
-    let chunk = 0;
+    const DT = 0.5;
+    const TARGET_SIM_SECONDS = 600; // ~10 sim-minutes, same as before
+    const FRAME_BUDGET_MS = 8;
+    let advanced = 0;
     let spawnAcc = spawnAccRef.current;
-    const runChunk = () => {
+    const tick = () => {
+      const tStart = performance.now();
       let cur = circlesRef.current;
-      for (let i = 0; i < ITERS_PER_CHUNK; i++) {
+      while (advanced < TARGET_SIM_SECONDS && performance.now() - tStart < FRAME_BUDGET_MS) {
         cur = step(cur, configRef.current, DT, w, h);
+        if (cur.length > MAX_BODIES) {
+          cur = enforcePopulationCap(cur, MAX_BODIES);
+        }
         spawnAcc += DT;
         if (spawnAcc >= configRef.current.spawnRate) {
           spawnAcc = 0;
           cur = cur.concat(spawnFromEdge(w, h));
         }
+        advanced += DT;
       }
       circlesRef.current = cur;
-      simTimeRef.current += ITERS_PER_CHUNK * DT;
-      chunk++;
-      setFfProgress(chunk / CHUNKS);
-      setElapsedSec(simTimeRef.current);
+      simTimeRef.current += (advanced - (simTimeRef.current === 0 ? 0 : 0));
+      // progress + HUD
+      setFfProgress(Math.min(1, advanced / TARGET_SIM_SECONDS));
       let mSum = 0;
       for (const c of cur) mSum += c.mass;
       for (const e of enemiesRef.current) mSum += e.mass;
       setTotalMass(mSum);
-      if (chunk < CHUNKS) {
-        window.setTimeout(runChunk, 0);
+      if (advanced < TARGET_SIM_SECONDS) {
+        requestAnimationFrame(tick);
       } else {
         spawnAccRef.current = spawnAcc;
+        setElapsedSec(simTimeRef.current);
         setFastForwarding(false);
       }
     };
-    window.setTimeout(runChunk, 30);
+    // accumulate sim time once at end-of-FF (track via 'advanced')
+    const startSim = simTimeRef.current;
+    const origTick = tick;
+    const wrappedTick = () => {
+      origTick();
+      simTimeRef.current = startSim + advanced;
+    };
+    requestAnimationFrame(wrappedTick);
   };
 
   const handleChaos = (id: string) => {
