@@ -405,6 +405,11 @@ export function OrbisCanvas() {
     inversionUntilRef.current = 0;
     blackHoleUntilRef.current = 0;
     blackHolePosRef.current = null;
+    shatterUntilRef.current = 0;
+    coalesceUntilRef.current = 0;
+    singularityRef.current = null;
+    scenarioStartSimTimeRef.current = 0;
+    scenarioFiredRef.current = new Set();
     const tctx = trailCtxRef.current;
     if (tctx) tctx.clearRect(0, 0, sizeRef.current.w, sizeRef.current.h);
   };
@@ -611,6 +616,9 @@ export function OrbisCanvas() {
         onEnemyChange={handleEnemyChange}
         onFastForward={handleFastForward}
         onChaos={handleChaos}
+        scenarios={SCENARIOS}
+        activeScenarioId={activeScenarioId}
+        onScenario={handleScenario}
       />
       <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
       {fastForwarding && (
