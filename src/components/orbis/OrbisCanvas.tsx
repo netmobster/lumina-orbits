@@ -22,6 +22,7 @@ import {
   type EnemyConfig,
 } from "@/lib/orbis/enemies";
 import { SCENARIOS, type Scenario } from "@/lib/orbis/scenarios";
+import { classifyArchetypes, createBinaryTracker } from "@/lib/orbis/roles";
 
 export function OrbisCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -67,6 +68,9 @@ export function OrbisCanvas() {
   const handleChaosRef = useRef<((id: string) => void) | null>(null);
   // random event generator — always on, fires a weighted-random agent every N sim seconds
   const nextAutoChaosAtRef = useRef(0);
+  const binaryTrackerRef = useRef(createBinaryTracker());
+  const archetypeAccRef = useRef(0);
+  const archetypeLastRef = useRef(0);
   const AUTO_CHAOS_POOL: { id: string; weight: number }[] = [
     { id: "storm", weight: 3 },
     { id: "comet", weight: 3 },
