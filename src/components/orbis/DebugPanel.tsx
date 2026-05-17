@@ -368,6 +368,21 @@ export function DebugPanel({
                 );
               })}
             </div>
+            <button
+              onClick={() => {
+                const all = ["supernova","blackhole","pulse","storm","comet","inversion","shatter","singularity","coalesce"];
+                const now = Date.now();
+                const available = all.filter((id) => (cooldowns[id] ?? 0) <= now);
+                if (available.length === 0) return;
+                const pick = available[Math.floor(Math.random() * available.length)];
+                onChaos(pick);
+                startCooldown(pick);
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border px-3 py-2 text-[12px] transition-colors hover:bg-white/5"
+              style={{ borderColor: "#d94a4a", color: "#f0d0d0" }}
+            >
+              <Shuffle size={13} /> Random agent
+            </button>
           </div>
 
           <Slider label="Auto-chaos interval" hint="Average seconds between auto-fired random chaos events. The game keeps evolving on its own."
