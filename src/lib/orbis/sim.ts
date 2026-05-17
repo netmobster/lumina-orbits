@@ -1,5 +1,5 @@
 import { blendColor, randomPaletteColor, rgbPrefixOf } from "./palette";
-import { Circle, SimConfig, radiusOf } from "./types";
+import { Circle, SimConfig, radiusOf, type Pulse } from "./types";
 
 export type StepOpts = {
   /** Multiplier applied to G this frame (default 1). */
@@ -8,6 +8,12 @@ export type StepOpts = {
   gravitySign?: number;
   /** Extra invisible attractor (e.g. transient black hole). */
   extraAttractor?: { x: number; y: number; mass: number } | null;
+  /** While true, high-velocity crashes between big bodies shatter both. */
+  shatterActive?: boolean;
+  /** While true, small-vs-small pairs merge at half threshold. */
+  coalesceActive?: boolean;
+  /** Mutable sink for visual ring pulses pushed during the step. */
+  pulsesOut?: Pulse[];
 };
 
 let _id = 1;
@@ -170,6 +176,9 @@ export function step(
   // collisions
   const mergedIds = new Set<number>();
   const newCircles: Circle[] = [];
+  const shatterActive = !!opts.shatterActive;
+  const coalesceActive = !!opts.coalesceActive;
+  const pulsesOut = opts.pulsesOut;
   for (let i = 0; i < n; i++) {
     const a = circles[i];
     if (mergedIds.has(a.id)) continue;
@@ -201,7 +210,9 @@ export function step(
           a.vy += rvy * 0.05;
           b.vx -= rvx * 0.05;
           b.vy -= rvy * 0.05;
-          if (a.mass + b.mass >= cfg.mergeThreshold) {
+          const bothSmall = coalesceActive && a.mass < 5 && b.mass < 5;
+          const effThreshold = bothSmall ? cfg.mergeThreshold * 0.5 : cfg.mergeThreshold;
+          if (a.mass + b.mass >= effThreshold) {
             const merged = mergeCircles(a, b);
             mergedIds.add(a.id);
             mergedIds.add(b.id);
@@ -219,6 +230,25 @@ export function step(
           const rvx = b.vx - a.vx, rvy = b.vy - a.vy;
           const velAlongNormal = rvx * nx + rvy * ny;
           if (velAlongNormal < 0) {
+            // shatter on high-energy crash between two non-trivial bodies
+            if (shatterActive && a.mass >= 8 && b.mass >= 8 && -velAlongNormal >= 60) {
+              const frags = shatterCircle(a, 3).concat(shatterCircle(b, 3));
+              mergedIds.add(a.id);
+              mergedIds.add(b.id);
+              for (const f of frags) newCircles.push(f);
+              if (pulsesOut) {
+                pulsesOut.push({
+                  x: (a.x + b.x) / 2,
+                  y: (a.y + b.y) / 2,
+                  bornAt: performance.now(),
+                  kind: "shatter",
+                });
+              }
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("orbis:sfx:collision"));
+              }
+              break;
+            }
             const e = 0.6;
             const jImp = -(1 + e) * velAlongNormal / (1 / a.mass + 1 / b.mass);
             const ix = jImp * nx, iy = jImp * ny;
@@ -252,6 +282,62 @@ export function step(
     }
   }
   return result;
+}
+
+/** Break a circle into n outward-flung fragments. Conserves 98% of mass. */
+export function shatterCircle(c: Circle, n: number): Circle[] {
+  const totalMass = c.mass * 0.98;
+  const m = totalMass / n;
+  const r = radiusOf(m);
+  const out: Circle[] = [];
+  const baseAng = Math.random() * Math.PI * 2;
+  for (let i = 0; i < n; i++) {
+    const ang = baseAng + (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+    const ox = Math.cos(ang) * (c.radius + r + 1);
+    const oy = Math.sin(ang) * (c.radius + r + 1);
+    const kick = 70 + Math.random() * 70;
+    out.push(
+      makeCircle({
+        x: c.x + ox,
+        y: c.y + oy,
+        vx: c.vx * 0.4 + Math.cos(ang) * kick,
+        vy: c.vy * 0.4 + Math.sin(ang) * kick,
+        mass: m,
+        color: c.color,
+        flashUntil: performance.now() + 300,
+      }),
+    );
+  }
+  return out;
+}
+
+/** Eject fragments radially from a point — used by Singularity payoff. */
+export function ejectFragments(
+  x: number,
+  y: number,
+  totalMass: number,
+  n: number,
+  color?: { core: string; shadow: string },
+): Circle[] {
+  const m = Math.max(0.5, totalMass / n);
+  const out: Circle[] = [];
+  const baseAng = Math.random() * Math.PI * 2;
+  for (let i = 0; i < n; i++) {
+    const ang = baseAng + (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.5;
+    const sp = 120 + Math.random() * 60;
+    out.push(
+      makeCircle({
+        x: x + Math.cos(ang) * 10,
+        y: y + Math.sin(ang) * 10,
+        vx: Math.cos(ang) * sp,
+        vy: Math.sin(ang) * sp,
+        mass: m,
+        color,
+        flashUntil: performance.now() + 450,
+      }),
+    );
+  }
+  return out;
 }
 
 export function mergeCircles(a: Circle, b: Circle): Circle {
