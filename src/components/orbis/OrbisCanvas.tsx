@@ -74,6 +74,7 @@ export function OrbisCanvas() {
     { id: "coalesce", weight: 3 },
     { id: "supernova", weight: 1 },
     { id: "blackhole", weight: 1 },
+    { id: "fusion", weight: 2 },
     { id: "inversion", weight: 1 },
     { id: "singularity", weight: 1 },
   ];
@@ -204,7 +205,7 @@ export function OrbisCanvas() {
         }
         // resolve chaos-agent modifiers for this frame
         const t = simTimeRef.current;
-        const gravityMul = t < gravityPulseUntilRef.current ? 5 : 1;
+        const gravityMul = t < gravityPulseUntilRef.current ? 6.5 : 1;
         const gravitySign = t < inversionUntilRef.current ? -1 : 1;
         // singularity suck-phase attractor takes precedence over the black-hole agent
         const sing = singularityRef.current;
@@ -562,10 +563,10 @@ export function OrbisCanvas() {
         break;
       case "blackhole":
         blackHolePosRef.current = { x: w / 2, y: h / 2 };
-        blackHoleUntilRef.current = t + 3;
+        blackHoleUntilRef.current = t + 3.9;
         break;
       case "pulse":
-        gravityPulseUntilRef.current = t + 2;
+        gravityPulseUntilRef.current = t + 2.6;
         break;
       case "storm": {
         // 3 bursts of 5 over ~1s of real time
@@ -588,6 +589,9 @@ export function OrbisCanvas() {
         break;
       case "coalesce":
         coalesceUntilRef.current = t + 6;
+        break;
+      case "fusion":
+        circlesRef.current = fusionCascade(circlesRef.current, pulsesRef.current);
         break;
       case "singularity": {
         if (singularityRef.current) break; // already in progress
