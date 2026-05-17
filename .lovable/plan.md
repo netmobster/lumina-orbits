@@ -1,43 +1,41 @@
-## Player Mode — Scenario-driven minimal UI
+## SFX: 5-voice layered pool with gentle per-voice ducking
 
-When a scenario is active, the debug panel collapses into a player-friendly shell. All tuning tabs hide; only the scenario row, an Enemies toggle, and a Spawn-rate slider remain. Exit returns to the full debug UI.
+### Goal
+Replace the 2-voice rotation per sound type with a 5-voice pool. Each new trigger ducks every other currently-playing voice in that pool by 10% (multiplicative), so after 5 rapid collisions you hear five slightly-quieter overlapping layers instead of a hard cut.
 
-### Changes (single file: `src/components/orbis/DebugPanel.tsx`)
+### File
+`src/components/orbis/SfxControl.tsx` only — no other files touched.
 
-1. **Detect player mode**
-   - `const playerMode = activeScenarioId !== null;`
+### Changes
 
-2. **Header tweak**
-   - When `playerMode`, show the active scenario name in place of the FPS/count/speed stats (keep FPS small as a corner detail, or drop entirely). Keep collapse chevron.
+1. **Constants**
+   - `POOL_SIZE = 5` (was 2).
+   - `DUCK_STEP = 0.9` — multiplier applied per new layer (was a one-shot `DUCK_RATIO = 0.8`).
+   - `MIN_DUCK = 0.4` — floor so the oldest voice never disappears entirely.
 
-3. **Hide everything below the Scenarios row when `playerMode`**
-   - Skip the tab strip (`tabs.map(...)`).
-   - Skip all `tab === "..."` content blocks.
-   - Render a compact "Player controls" block instead:
-     - `Toggle` — Enemies (`enemyConfig.enabled`)
-     - `Slider` — Spawn rate (s) (`config.spawnRate`)
-     - (Optional) `Slider` — Wave rate (s), only when enemies enabled
-   - Keep a small muted hint line: "Scenario running — exit to access full controls."
+2. **Pool shape**
+   - `Pool.voices: Voice[]` (length 5) instead of a fixed tuple.
+   - Drop the binary "older vs newer" logic in `trigger()`.
 
-4. **Scenarios row stays as-is** (already exists at top of panel body). Active pill + Exit button continue to work.
+3. **Trigger logic** (rewrite of the `trigger(key)` body)
+   - Find a free voice (`fadeOutUntil === 0`). If none, steal the oldest by `startedAt`.
+   - Before starting it, walk every *other* voice in the pool that is still playing and multiply its `duckMul` by `DUCK_STEP`, clamped to `MIN_DUCK`.
+   - Start the new voice with `duckMul = 1` and the existing envelope (fade-in 2s, sustain, fade-out 0.5s).
+   - When a voice finishes (existing block in the rAF tick), reset its `duckMul = 1` as today.
 
-5. **No behavioral / state changes** — purely conditional render. Tabs state is preserved so exiting the scenario restores the previously selected tab.
+4. **Volume math** — unchanged.
+   `audio.volume = target * envelope * duckMul` already handles arbitrary `duckMul` values, so no rAF changes needed.
 
-### Out of scope
-- No changes to `OrbisCanvas`, `sim.ts`, `scenarios.ts`, or any chaos-agent logic.
-- No new files. No new props. No styling token changes.
+5. **Keep as-is**
+   - `MIN_INTERVAL_MS` rate limit (60ms) — still prevents rAF-frame machine-gunning.
+   - Random offset, fade envelope, mute toggle, slider, event names — all unchanged.
 
-### Visual sketch
+### Behavior after change
+- 1 collision: one voice at full envelope, no ducking.
+- 5 rapid collisions: voices at duckMul ≈ `0.9⁴, 0.9³, 0.9², 0.9, 1.0` → `0.66, 0.73, 0.81, 0.90, 1.00`. Airy, layered, no harsh stacking.
+- 6th rapid collision: steals the oldest, all five layers get one more `×0.9` (floored at 0.4).
 
-```text
-┌─ Orbis ──────────── Singularity Cycle ▾┐
-│ [Singularity Cycle*] [Bullet Hell] [Slow Bloom] [Exit] │
-│                                                        │
-│ PLAYER CONTROLS                                        │
-│ ◉ Enemies                                              │
-│ Spawn rate (s)  ───●────────────  12                   │
-│ Wave rate (s)   ──────●──────────  8                   │
-│                                                        │
-│ Scenario running — exit for full controls.             │
-└────────────────────────────────────────────────────────┘
-```
+### Risks / non-goals
+- More simultaneous `HTMLAudioElement` playback per type (5 instead of 2). Cheap — browsers handle dozens. No Web Audio refactor.
+- No change to merge vs collision vs attach event semantics.
+- No new UI.
