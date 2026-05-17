@@ -393,9 +393,9 @@ export function ejectFragments(
   return out;
 }
 
-export function mergeCircles(a: Circle, b: Circle): Circle {
+export function mergeCircles(a: Circle, b: Circle, efficiency = 0.98): Circle {
   const totalMass = a.mass + b.mass;
-  const newMass = totalMass * 0.98; // 2% energy loss — allows long-term mass growth
+  const newMass = totalMass * efficiency; // default 2% energy loss; accretion uses 1.0
   const x = (a.x * a.mass + b.x * b.mass) / totalMass;
   const y = (a.y * a.mass + b.y * b.mass) / totalMass;
   // conserve momentum
@@ -551,8 +551,9 @@ export function fusionCascade(
   return circles.filter((c) => !consumed.has(c.id)).concat(newOnes);
 }
 
-/** Forced nearest-neighbor merge: smallest first, merges with closest other body.
- * Guarantees population drops. Used as the floor of the cap-enforcer ladder. */
+/** Forced nearest-neighbor merge: smallest first, prefers a partner ≥2× its mass
+ * (falls back to plain nearest). Guarantees population drops AND biases toward
+ * feeding larger bodies instead of producing new mids. */
 function forcedNearestMerge(circles: Circle[]): Circle[] {
   if (circles.length < 2) return circles;
   const sorted = [...circles].sort((a, b) => a.mass - b.mass);
@@ -561,16 +562,21 @@ function forcedNearestMerge(circles: Circle[]): Circle[] {
   for (const a of sorted) {
     if (consumed.has(a.id)) continue;
     if (a.infected) continue;
-    let best: Circle | null = null;
-    let bestD2 = Infinity;
+    let bestBig: Circle | null = null;
+    let bestBigD2 = Infinity;
+    let bestAny: Circle | null = null;
+    let bestAnyD2 = Infinity;
+    const bigThreshold = a.mass * 2;
     for (const b of sorted) {
       if (b.id === a.id) continue;
       if (consumed.has(b.id)) continue;
       if (b.infected) continue;
       const dx = b.x - a.x, dy = b.y - a.y;
       const d2 = dx * dx + dy * dy;
-      if (d2 < bestD2) { bestD2 = d2; best = b; }
+      if (d2 < bestAnyD2) { bestAnyD2 = d2; bestAny = b; }
+      if (b.mass >= bigThreshold && d2 < bestBigD2) { bestBigD2 = d2; bestBig = b; }
     }
+    const best = bestBig ?? bestAny;
     if (!best) continue;
     consumed.add(a.id);
     consumed.add(best.id);
@@ -581,8 +587,58 @@ function forcedNearestMerge(circles: Circle[]): Circle[] {
 }
 
 /**
+ * Accretion pass: largest bodies first eat their nearest small neighbors.
+ * Concentrates mass into giants instead of producing new mid-tier bodies.
+ * Lossless merges (efficiency=1) so growth compounds across cap cycles.
+ */
+function accretionMerge(circles: Circle[], pulsesOut?: Pulse[]): Circle[] {
+  if (circles.length < 2) return circles;
+  const sorted = [...circles].sort((a, b) => b.mass - a.mass);
+  const consumed = new Set<number>();
+  const replaced = new Map<number, Circle>(); // giant.id -> grown giant
+  const now = performance.now();
+  for (const giantOrig of sorted) {
+    if (consumed.has(giantOrig.id)) continue;
+    if (giantOrig.infected) continue;
+    let giant = giantOrig;
+    const smallCap = giant.mass * 0.4;
+    const reach = giant.radius * 6;
+    const reach2 = reach * reach;
+    // gather candidates (small + nearby + not consumed)
+    const candidates: { c: Circle; d2: number }[] = [];
+    for (const b of sorted) {
+      if (b.id === giantOrig.id) continue;
+      if (consumed.has(b.id)) continue;
+      if (b.infected) continue;
+      if (b.mass > smallCap) continue;
+      const dx = b.x - giant.x, dy = b.y - giant.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > reach2) continue;
+      candidates.push({ c: b, d2 });
+    }
+    if (candidates.length === 0) continue;
+    candidates.sort((p, q) => p.d2 - q.d2);
+    // eat up to N nearest small bodies
+    const eatN = Math.min(candidates.length, 6);
+    for (let i = 0; i < eatN; i++) {
+      const prey = candidates[i].c;
+      consumed.add(prey.id);
+      giant = mergeCircles(giant, prey, 1.0); // lossless
+    }
+    consumed.add(giantOrig.id);
+    replaced.set(giantOrig.id, giant);
+    if (pulsesOut) {
+      pulsesOut.push({ x: giant.x, y: giant.y, bornAt: now, kind: "shatter" });
+    }
+  }
+  if (consumed.size === 0) return circles;
+  const survivors = circles.filter((c) => !consumed.has(c.id));
+  return survivors.concat([...replaced.values()]);
+}
+
+/**
  * Enforce a hard population cap by collapsing bodies into bigger ones.
- * Ladder: strict fusion → loose fusion → forced nearest merge.
+ * Ladder: accretion → strict fusion → loose fusion → forced nearest merge.
  * Target: ≤ cap * 0.5. Up to 4 passes; aborts if no progress.
  */
 export function enforcePopulationCap(
@@ -595,13 +651,16 @@ export function enforcePopulationCap(
   let cur = circles;
   for (let pass = 0; pass < 4 && cur.length > target; pass++) {
     const before = cur.length;
-    // strict
+    // accretion: giants eat small neighbors (mass concentrates)
+    cur = accretionMerge(cur, pulsesOut);
+    if (cur.length <= target) break;
+    // strict peer fusion
     cur = fusionCascade(cur, pulsesOut, { massRatio: 0.8, reachMultiplier: 2 });
     if (cur.length <= target) break;
-    // loose
+    // loose peer fusion
     cur = fusionCascade(cur, pulsesOut, { massRatio: 0.5, reachMultiplier: 4 });
     if (cur.length <= target) break;
-    // forced
+    // forced floor (now biased toward partners ≥2× small body's mass)
     cur = forcedNearestMerge(cur);
     if (cur.length >= before) break; // no progress, bail
   }
