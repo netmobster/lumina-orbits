@@ -270,12 +270,27 @@ export function OrbisCanvas() {
           trailCanvas: trailCanvasRef.current,
           enemies: enemiesRef.current,
           pulses: pulsesRef.current,
+          singularity: singularityRef.current
+            ? {
+                x: singularityRef.current.x,
+                y: singularityRef.current.y,
+                phase: singularityRef.current.phase,
+                progress:
+                  singularityRef.current.phase === "charge"
+                    ? Math.min(1, 1 - (singularityRef.current.chargeUntil - simTimeRef.current) / 1.5)
+                    : 1,
+              }
+            : null,
         },
         configRef.current.trailOpacity,
         configRef.current.glowSoftness,
         configRef.current.tailFadeRate,
         configRef.current.trailLength,
       );
+
+      if (pulsesRef.current.length > 0) {
+        pulsesRef.current = pulsesRef.current.filter((p) => now - p.bornAt < 1600);
+      }
 
       // fps update ~4Hz
       fpsAcc += realDt; fpsFrames++; fpsTimer += realDt;
