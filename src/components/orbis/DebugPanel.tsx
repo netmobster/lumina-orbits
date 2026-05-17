@@ -120,6 +120,39 @@ export function DebugPanel({
 
       {!collapsed && (
         <div className="space-y-4 px-4 pb-4">
+          {/* Scenarios */}
+          <div className="space-y-1.5">
+            <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--orbis-text-muted)" }}>Scenarios</span>
+            <div className="flex flex-wrap gap-1.5">
+              {scenarios.map((s) => {
+                const active = activeScenarioId === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => onScenario(active ? null : s.id)}
+                    title={s.blurb}
+                    className="rounded-xl border px-2.5 py-1 text-[11px] transition-colors hover:bg-white/5"
+                    style={{
+                      borderColor: active ? "var(--orbis-accent)" : "var(--orbis-hairline)",
+                      color: active ? "var(--orbis-accent)" : "var(--orbis-text)",
+                    }}
+                  >
+                    {s.name}
+                  </button>
+                );
+              })}
+              {activeScenarioId && (
+                <button
+                  onClick={() => onScenario(null)}
+                  className="rounded-xl border px-2.5 py-1 text-[11px] transition-colors hover:bg-white/5"
+                  style={{ borderColor: "var(--orbis-hairline)", color: "var(--orbis-text-muted)" }}
+                >
+                  Exit
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Tabs */}
           <div className="grid grid-cols-6 gap-1.5">
               {tabs.map(({ id, label, Icon, badge }, i) => {
