@@ -103,10 +103,10 @@ export function render(
 
   // glow + body
   for (const c of circles) {
-    const r = c.radius;
-    const glowR = r * 1.9;
+    const r = Math.max(0, c.radius);
+    const glowR = Math.max(0, r * 1.9);
     const alpha = Math.min(0.28, 0.15 + r / 200);
-    if (r < 3) {
+    if (r < 6) {
       ctx.fillStyle = `rgba(${c.rgbPrefix},${alpha})`;
     } else {
       const grad = ctx.createRadialGradient(c.x, c.y, r * 0.2, c.x, c.y, glowR);
@@ -123,7 +123,7 @@ export function render(
   // solid disc on top
   ctx.globalCompositeOperation = "source-over";
   for (const c of circles) {
-    const r = c.radius;
+    const r = Math.max(0, c.radius);
     // infected lerp toward deep red
     let coreColor = c.color.core;
     let shadowColor = c.color.shadow;
@@ -133,7 +133,7 @@ export function render(
       coreColor = lerpHex(c.color.core, "#6b1a1a", 0.4 + t * 0.6);
       shadowColor = lerpHex(c.color.shadow, "#3a0a0a", 0.5 + t * 0.5);
     }
-    if (r < 3) {
+    if (r < 6) {
       ctx.fillStyle = coreColor;
     } else {
       const inner = ctx.createRadialGradient(c.x - r * 0.3, c.y - r * 0.3, r * 0.1, c.x, c.y, r);
