@@ -238,6 +238,28 @@ export function DebugPanel({
               ))}
             </div>
           </div>
+
+          {/* Scenarios dropdown */}
+          <div className="space-y-1.5">
+            <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--orbis-text-muted)" }}>Scenario</span>
+            <select
+              value={activeScenarioId ?? ""}
+              onChange={(e) => onScenario(e.target.value === "" ? null : e.target.value)}
+              className="w-full rounded-xl border px-2 py-1.5 text-[12px] transition-colors hover:bg-white/5"
+              style={{
+                background: "transparent",
+                borderColor: activeScenarioId ? "var(--orbis-accent)" : "var(--orbis-hairline)",
+                color: activeScenarioId ? "var(--orbis-accent)" : "var(--orbis-text)",
+              }}
+            >
+              <option value="" style={{ background: "#04141a", color: "#fff" }}>None</option>
+              {scenarios.map((s) => (
+                <option key={s.id} value={s.id} style={{ background: "#04141a", color: "#fff" }}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </div>
           </>}
 
           {!playerMode && tab === "planets" && <>
