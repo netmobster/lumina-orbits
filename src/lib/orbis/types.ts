@@ -27,6 +27,20 @@ export type Circle = {
   originalMass?: number;
   /** enemy system: brief white flash on conversion */
   infectionFlashUntil?: number;
+  /** performance.now() at creation — used for age-based archetype classification */
+  bornAt?: number;
+  /** how many merges deep this body's lineage is */
+  mergeCount?: number;
+  /** performance.now() of the most recent merge (or creation) */
+  lastMergeAt?: number;
+  /** id of the body this one is in a stable binary with */
+  binaryWith?: number;
+  /** when the current binary partnership formed */
+  binarySince?: number;
+  /** computed every ~30 frames; cached for renderer / pruner targeting */
+  archetype?: "drifter" | "wanderer" | "anchor" | "elder";
+  /** sim-time seconds the body has been below the anchor velocity threshold */
+  stillSince?: number;
 };
 
 export type SimConfig = {
