@@ -40,6 +40,8 @@ export function DebugPanel({
   const [collapsed, setCollapsed] = useState(false);
   type Tab = "time" | "planets" | "bg" | "visuals" | "xl" | "radio";
   const [tab, setTab] = useState<Tab>("time");
+  const playerMode = activeScenarioId !== null;
+  const activeScenario = scenarios.find((s) => s.id === activeScenarioId) ?? null;
   // chaos-agent cooldowns — id -> unlock-at (ms epoch)
   const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
   const [, tick] = useState(0);
@@ -111,9 +113,18 @@ export function DebugPanel({
           <span className="tracking-[0.2em] text-[11px] uppercase" style={{ color: "var(--orbis-text-muted)" }}>
             Orbis
           </span>
-          <span className="tabular-nums" style={{ color: "var(--orbis-accent)" }}>{fps} fps</span>
-          <span className="tabular-nums" style={{ color: "var(--orbis-text-muted)" }}>· {count}</span>
-          <span className="tabular-nums" style={{ color: "var(--orbis-text-muted)" }}>· {avgSpeed.toFixed(1)} v</span>
+          {playerMode ? (
+            <>
+              <span style={{ color: "var(--orbis-accent)" }}>{activeScenario?.name ?? "Scenario"}</span>
+              <span className="tabular-nums" style={{ color: "var(--orbis-text-muted)" }}>· {fps} fps</span>
+            </>
+          ) : (
+            <>
+              <span className="tabular-nums" style={{ color: "var(--orbis-accent)" }}>{fps} fps</span>
+              <span className="tabular-nums" style={{ color: "var(--orbis-text-muted)" }}>· {count}</span>
+              <span className="tabular-nums" style={{ color: "var(--orbis-text-muted)" }}>· {avgSpeed.toFixed(1)} v</span>
+            </>
+          )}
         </div>
         {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
       </button>
@@ -153,8 +164,8 @@ export function DebugPanel({
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="grid grid-cols-6 gap-1.5">
+          {/* Tabs (hidden in player mode) */}
+          {!playerMode && <div className="grid grid-cols-6 gap-1.5">
               {tabs.map(({ id, label, Icon, badge }, i) => {
               const active = tab === id;
               const isRadio = id === "radio";
@@ -187,9 +198,27 @@ export function DebugPanel({
                 </button>
               );
             })}
-          </div>
+          </div>}
 
-          {tab === "time" && <>
+          {playerMode && <>
+            <div className="space-y-1.5">
+              <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--orbis-text-muted)" }}>Player controls</span>
+            </div>
+            <Toggle label="Enemies" checked={enemyConfig.enabled} onChange={(v) => onEnemyChange({ enabled: v })} />
+            <Slider label="Spawn rate (s)" hint="Seconds between new bodies entering from the edge."
+              min={3} max={1000} step={1} value={config.spawnRate}
+              onChange={(v) => onChange({ spawnRate: v })} format={(v) => v.toFixed(0)} />
+            {enemyConfig.enabled && (
+              <Slider label="Wave rate (s)" hint="Seconds between enemy waves."
+                min={1.5} max={60} step={0.5} value={enemyConfig.waveRate}
+                onChange={(v) => onEnemyChange({ waveRate: v })} format={(v) => v.toFixed(1) + "s"} />
+            )}
+            <p className="text-[11px] leading-relaxed" style={{ color: "var(--orbis-text-muted)" }}>
+              Scenario running — exit for full controls.
+            </p>
+          </>}
+
+          {!playerMode && tab === "time" && <>
           {/* Presets */}
           <div className="space-y-1.5">
             <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--orbis-text-muted)" }}>Preset</span>
@@ -244,7 +273,7 @@ export function DebugPanel({
           </div>
           </>}
 
-          {tab === "planets" && <>
+          {!playerMode && tab === "planets" && <>
           <Slider label="Attraction (G)" hint="Gravitational pull strength between bodies. Higher = stronger orbits and slingshots."
             min={0} max={1} step={0.01} value={config.G}
             onChange={(v) => onChange({ G: v })} format={(v) => v.toFixed(2)} />
@@ -262,7 +291,7 @@ export function DebugPanel({
             onChange={(v) => onChange({ spawnRate: v })} format={(v) => v.toFixed(0)} />
           </>}
 
-          {tab === "bg" && <>
+          {!playerMode && tab === "bg" && <>
           <Slider label="Aura intensity" hint="Brightness of the soft colored clouds behind the simulation."
             min={1} max={10} step={0.1} value={config.auraIntensity}
             onChange={(v) => onChange({ auraIntensity: v })} format={(v) => v.toFixed(1)} />
@@ -271,7 +300,7 @@ export function DebugPanel({
             onChange={(v) => onChange({ ribbonDrift: v })} format={(v) => v.toFixed(1) + "×"} />
           </>}
 
-          {tab === "visuals" && <>
+          {!playerMode && tab === "visuals" && <>
           <Slider label="Trail length" hint="How long tails persist before fully fading. Works together with Tail fade rate."
             min={10} max={2000} step={10} value={config.trailLength}
             onChange={(v) => onChange({ trailLength: v })} format={(v) => v.toFixed(0)} />
@@ -289,7 +318,7 @@ export function DebugPanel({
           </div>
           </>}
 
-          {tab === "xl" && <>
+          {!playerMode && tab === "xl" && <>
           <Toggle label="Experimental features" checked={config.xlEnabled} onChange={(v) => onChange({ xlEnabled: v })} />
           <div style={{ opacity: config.xlEnabled ? 1 : 0.4, pointerEvents: config.xlEnabled ? "auto" : "none" }}>
             <Slider label="Split randomness" hint="Average random splits per second. Big bodies spontaneously break in two."
@@ -298,7 +327,7 @@ export function DebugPanel({
           </div>
           </>}
 
-          {tab === "radio" && <>
+          {!playerMode && tab === "radio" && <>
           <div className="space-y-1.5">
             <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--orbis-text-muted)" }}>Chaos agents</span>
             <button
