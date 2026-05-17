@@ -21,6 +21,7 @@ const nextId = () => _id++;
 
 export function makeCircle(opts: Partial<Circle> & { mass: number; x: number; y: number }): Circle {
   const color = opts.color ?? randomPaletteColor();
+  const now = typeof performance !== "undefined" ? performance.now() : 0;
   return {
     id: opts.id ?? nextId(),
     x: opts.x,
@@ -36,6 +37,9 @@ export function makeCircle(opts: Partial<Circle> & { mass: number; x: number; y:
     radius: radiusOf(opts.mass),
     rgbPrefix: rgbPrefixOf(color.core),
     originalMass: opts.mass,
+    bornAt: opts.bornAt ?? now,
+    mergeCount: opts.mergeCount ?? 0,
+    lastMergeAt: opts.lastMergeAt ?? now,
   };
 }
 
