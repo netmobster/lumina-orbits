@@ -1,76 +1,43 @@
-# Sound Effects feature
+# Randomized SFX envelopes
 
-Mirror the existing `MusicControl` UI/UX with a second floating control for sound effects, then fire one-shot atmospheric clips on three sim events: **merge**, **object collision**, **baddie attach**.
+Each trigger picks a fresh slice and applies a fade-in / sustain / fade-out envelope so the clips never sound the same twice.
 
-Assets are already copied to `src/assets/sfx-merge.mp3`, `src/assets/sfx-collision.mp3`, `src/assets/sfx-attach.mp3`.
+## Per-trigger parameters
 
-## 1. New component: `src/components/orbis/SfxControl.tsx`
+For every event, roll once:
 
-Near-clone of `MusicControl.tsx` with these differences:
+- **Start offset**: `random(0, max(0, duration - playLen))`. If a file ends up shorter than 60s, the offset is clamped to what fits. We will not exceed 60s either way: `maxOffset = min(60, duration - playLen)`.
+- **Play length**: `3 + random() * 2` seconds (3.0 – 5.0s).
+- **Fade-in**: 2.0s linear from 0 → target.
+- **Sustain**: `playLen - 2.0 - 0.5` seconds at target (so 0.5s – 2.5s of full-volume body).
+- **Fade-out**: 0.5s linear from target → 0, then `pause()` + reset.
 
-- Position: `fixed left-4 top-[64px]` (directly below the music button).
-- Icon: lucide `AudioLines` (on) / `VolumeX` (muted). Tooltip "Sound effects (F) — NN%".
-- **MAX_VOLUME = 0.20** (hard 20% cap of file volume).
-- **DEFAULT_SLIDER = 0.30** (slider sits at "3" on a 0–10 feel → 30% of the 20% cap = ~6% real loudness).
-- No autoplay / first-gesture logic — these only play on events. Drop the "started" pulse.
-- Keyboard toggle: listens for `orbis:toggle-sfx` (added as `F` to the global handler).
+Total audible time per trigger = `playLen` (3 – 5s).
 
-### Stacking rule (max 2 per clip type)
+Note: with playLen as low as 3.0s, fade-in (2s) + fade-out (0.5s) only leaves 0.5s sustain. That's fine for atmospheric tones — they'll feel like soft swells. If it feels too bell-curvy I can bump min playLen to 3.5s later.
 
-For each of the 3 SFX types, keep a **pool of exactly 2 `HTMLAudioElement` instances** (preloaded clones of the same source). State per type: `{ a: Audio, b: Audio, lastUsed: "a" | "b" | null }`.
+## Volume math
 
-On an event:
+Each voice tracks its own envelope value `env ∈ [0, 1]` plus a duck multiplier `duckMul ∈ {1.0, 0.8}` (still using the existing max-2-voices rule — older voice ducks to 80% when a second one starts).
 
-1. If neither is currently playing → play the first one at full target volume.
-2. If exactly one is playing → **duck that one to 80% of its current volume** and start the other on top at full target volume. (Two concurrent voices of the same clip, second one louder.)
-3. If both are already playing → restart the **older** one (the one that started first) at full target volume, leave the newer one ducked at 80%. This caps concurrent voices at 2 forever, regardless of event rate.
+```
+audio.volume = (muted ? 0 : sliderVolume * MAX_VOLUME) * env * duckMul
+```
 
-Target volume per play = `muted ? 0 : sliderVolume * MAX_VOLUME`.
+A single `requestAnimationFrame` loop in `SfxControl` walks all 6 voices (3 types × 2 voices), computes `env` from the elapsed time vs. the voice's timestamps, and writes `audio.volume`. When `env` reaches 0 after the fade-out, the loop calls `audio.pause()` and marks the voice idle.
 
-Different clip types can overlap each other freely (merge + attach at once stays atmospheric); the cap is per-type.
+The slider/mute live-update effect stays — it just changes the `target` factor that the rAF loop multiplies in, so an in-progress fade keeps its shape.
 
-### Volume slider live-updates
+## Stacking rule (unchanged)
 
-When the slider moves or mute toggles, recompute target volume and apply to any currently-playing instances (preserving the 80% duck ratio on the older one).
+- 1 voice playing → start the other on top, duck the first to 80%.
+- 2 voices playing → restart the older voice's slice (new random offset + envelope), keep the newer one ducked at 80%.
+- Per-type 60ms cooldown stays as belt-and-suspenders against frame-rate spam.
 
-### Event listeners
+## File-duration handling
 
-The component listens on `window` for:
+`audio.duration` is `NaN` until metadata loads. Set `audio.preload = "auto"` (already done) and read duration lazily inside `trigger()` — if it's still `NaN` on the very first call, fall back to a 30s assumed duration for that one trigger.
 
-- `orbis:sfx:merge`
-- `orbis:sfx:collision`
-- `orbis:sfx:attach`
+## Files touched
 
-Vertical slider hover UI: identical to `MusicControl`.
-
-## 2. Event emission
-
-No throttling in emitters — the 2-voice pool is the throttle.
-
-### `src/lib/orbis/sim.ts`
-
-- In `step()` (and `mergeCircles` if it's the single merge codepath), dispatch `window.dispatchEvent(new CustomEvent("orbis:sfx:merge"))` on every successful merge.
-- On every elastic collision resolution that doesn't merge, dispatch `window.dispatchEvent(new CustomEvent("orbis:sfx:collision"))`.
-
-Guard each with `typeof window !== "undefined"` for SSR safety.
-
-### `src/lib/orbis/enemies.ts`
-
-In `stepEnemies`, at the latch branch where `e.attachedTo = target.id` is assigned, dispatch `window.dispatchEvent(new CustomEvent("orbis:sfx:attach"))`.
-
-## 3. Mount + shortcut
-
-In `OrbisCanvas.tsx`:
-
-- Render `<SfxControl />` right after `<MusicControl />`.
-- Add `F` to the global key handler → `window.dispatchEvent(new CustomEvent("orbis:toggle-sfx"))`.
-
-## 4. Help overlay
-
-Add one line to the shortcuts list: **F** — toggle sound effects.
-
-## Out of scope
-
-- No per-event volume sliders.
-- No persistence of mute/volume across reloads (matches music).
-- Chaos agents, supernova, boss pulses — not wired in this pass.
+Only `src/components/orbis/SfxControl.tsx`. No changes to event emitters, sim code, or UI chrome.
