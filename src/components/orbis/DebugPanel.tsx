@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ChevronDown, ChevronUp, RotateCcw, Pause, Play, Clock, Orbit, Mountain,
-  Sparkles, Radiation, Star, FastForward, Zap, CircleDot, Wind, Flame, Repeat, Bomb, Magnet, Atom, Shuffle,
+  Sparkles, Radiation, Star, FastForward, Zap, CircleDot, Wind, Flame, Repeat, Bomb, Magnet, Atom, Shuffle, Combine,
 } from "lucide-react";
 import type { Preset, SimConfig } from "@/lib/orbis/types";
 import type { EnemyConfig } from "@/lib/orbis/enemies";
@@ -346,6 +346,7 @@ export function DebugPanel({
                 { id: "shatter", label: "Shatter", Icon: Sparkles },
                 { id: "singularity", label: "Singularity", Icon: Atom },
                 { id: "coalesce", label: "Coalesce", Icon: Magnet },
+                { id: "fusion", label: "Fusion Cascade", Icon: Combine },
               ] as const).map(({ id, label, Icon }) => {
                 const until = cooldowns[id] ?? 0;
                 const remaining = Math.max(0, until - Date.now());
@@ -379,7 +380,7 @@ export function DebugPanel({
             </div>
             <button
               onClick={() => {
-                const all = ["supernova","blackhole","pulse","storm","comet","inversion","shatter","singularity","coalesce"];
+                const all = ["supernova","blackhole","pulse","storm","comet","inversion","shatter","singularity","coalesce","fusion"];
                 const now = Date.now();
                 const available = all.filter((id) => (cooldowns[id] ?? 0) <= now);
                 if (available.length === 0) return;
