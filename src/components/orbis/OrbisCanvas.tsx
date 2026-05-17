@@ -242,6 +242,13 @@ export function OrbisCanvas() {
             pulsesOut: pulsesRef.current,
           },
         );
+        if (circlesRef.current.length > MAX_BODIES) {
+          circlesRef.current = enforcePopulationCap(
+            circlesRef.current,
+            MAX_BODIES,
+            pulsesRef.current,
+          );
+        }
 
         // singularity progression
         if (sing) {
