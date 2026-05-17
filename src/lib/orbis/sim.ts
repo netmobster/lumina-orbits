@@ -531,6 +531,7 @@ export function fusionCascade(
   for (const a of sorted) {
     if (consumed.has(a.id)) continue;
     if (a.infected) continue;
+    if (a.binaryWith != null) continue;
     const reach = a.radius * reachMul;
     const reach2 = reach * reach;
     const group: Circle[] = [];
@@ -538,6 +539,7 @@ export function fusionCascade(
       if (b.id === a.id) continue;
       if (consumed.has(b.id)) continue;
       if (b.infected) continue;
+      if (b.binaryWith != null) continue;
       const ratio = Math.min(a.mass, b.mass) / Math.max(a.mass, b.mass);
       if (ratio < minRatio) continue;
       const dx = b.x - a.x, dy = b.y - a.y;
