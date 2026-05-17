@@ -6,11 +6,11 @@ import { BackgroundAura } from "./BackgroundAura";
 import { LoadingOrb } from "./LoadingOrb";
 import { StatsHUD } from "./StatsHUD";
 import {
-  findCircleAt, seedCircles, spawnFromEdge, splitCircle, step, mergeCircles,
+  findCircleAt, seedCircles, spawnFromEdge, splitCircle, step, mergeCircles, ejectFragments,
   triggerSupernova, spawnComet, spawnAsteroidBurst,
 } from "@/lib/orbis/sim";
 import { render } from "@/lib/orbis/render";
-import { DEFAULT_CONFIG, PRESETS, type Circle, type Preset, type SimConfig } from "@/lib/orbis/types";
+import { DEFAULT_CONFIG, PRESETS, type Circle, type Preset, type Pulse, type SimConfig } from "@/lib/orbis/types";
 import {
   DEFAULT_ENEMY_CONFIG,
   spawnEnemyWave,
@@ -20,6 +20,7 @@ import {
   type Enemy,
   type EnemyConfig,
 } from "@/lib/orbis/enemies";
+import { SCENARIOS, type Scenario } from "@/lib/orbis/scenarios";
 
 export function OrbisCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
