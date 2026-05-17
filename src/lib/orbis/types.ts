@@ -70,6 +70,20 @@ export type Preset = "chaos" | "orbit" | "spiral" | "life";
 
 export type PresetPatch = Partial<SimConfig> & { speed?: number };
 
+export type PulseKind =
+  | "infection"
+  | "shatter"
+  | "singularity-charge"
+  | "singularity-burst";
+
+export type Pulse = {
+  x: number;
+  y: number;
+  bornAt: number;
+  /** defaults to "infection" when omitted (legacy enemy pulses) */
+  kind?: PulseKind;
+};
+
 export const PRESETS: Record<Preset, PresetPatch> = {
   chaos:  {
     G: 0.7, damping: 1.0, mergeThreshold: 15, maxForce: 400,

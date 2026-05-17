@@ -1,8 +1,6 @@
-import { Circle } from "./types";
+import { Circle, type Pulse } from "./types";
 import type { Enemy } from "./enemies";
 import { attachedCountMap } from "./enemies";
-
-type EnemyPulse = { x: number; y: number; bornAt: number };
 
 export function render(
   ctx: CanvasRenderingContext2D,
@@ -16,7 +14,9 @@ export function render(
     trailCtx?: CanvasRenderingContext2D | null;
     trailCanvas?: HTMLCanvasElement | null;
     enemies?: Enemy[];
-    pulses?: EnemyPulse[];
+    pulses?: Pulse[];
+    /** Active singularity marker (charging or sucking). */
+    singularity?: { x: number; y: number; phase: "charge" | "suck"; progress: number } | null;
   } = {},
   trailOpacity: number = 100,
   glowSoftness: number = 3.2,
@@ -179,26 +179,124 @@ export function render(
   // ---- enemies ----
   const enemies = opts.enemies ?? [];
   const pulses = opts.pulses ?? [];
-  if (enemies.length || pulses.length) {
-    const byId = new Map<number, Circle>();
-    for (const c of circles) byId.set(c.id, c);
-    const attachCounts = attachedCountMap(enemies);
+  const singularity = opts.singularity ?? null;
 
-    // infection pulses (ripples)
+  // ---- visual ring pulses (sim + enemy events) ----
+  if (pulses.length) {
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     for (const p of pulses) {
-      const age = (now - p.bornAt) / 1000;
-      if (age > 1.2) continue;
-      const t = age / 1.2;
-      const radius = 20 + t * 180;
-      ctx.strokeStyle = `rgba(220, 60, 60, ${(1 - t) * 0.5})`;
+      const kind = p.kind ?? "infection";
+      const ageMs = now - p.bornAt;
+      if (kind === "infection") {
+        const age = ageMs / 1000;
+        if (age > 1.2) continue;
+        const t = age / 1.2;
+        const radius = 20 + t * 180;
+        ctx.strokeStyle = `rgba(220, 60, 60, ${(1 - t) * 0.5})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (kind === "shatter") {
+        if (ageMs > 600) continue;
+        const t = ageMs / 600;
+        const radius = 10 + t * 110;
+        // bright white core ring
+        ctx.strokeStyle = `rgba(255, 240, 220, ${(1 - t) * 0.9})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        // outer orange echo
+        ctx.strokeStyle = `rgba(255, 140, 60, ${(1 - t) * 0.5})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius * 1.35, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (kind === "singularity-charge") {
+        if (ageMs > 1500) continue;
+        const t = ageMs / 1500;
+        // shrinking inward ring
+        const radius = 90 * (1 - t);
+        ctx.strokeStyle = `rgba(220, 74, 74, ${0.4 + 0.4 * t})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if (kind === "singularity-burst") {
+        if (ageMs > 900) continue;
+        const t = ageMs / 900;
+        const radius = 15 + t * 320;
+        ctx.strokeStyle = `rgba(240, 250, 255, ${(1 - t) * 0.95})`;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.strokeStyle = `rgba(120, 210, 255, ${(1 - t) * 0.55})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius * 1.4, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  // ---- singularity body (charging dot or active black void) ----
+  if (singularity) {
+    const { x, y, phase, progress } = singularity;
+    ctx.save();
+    if (phase === "charge") {
+      // dark inward-collapsing dot
+      const r = 20 + progress * 6;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, "rgba(20, 0, 0, 0.95)");
+      g.addColorStop(1, "rgba(20, 0, 0, 0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      // pulsing red rim
+      const rim = 0.5 + 0.5 * Math.sin(now / 80);
+      ctx.strokeStyle = `rgba(220, 74, 74, ${0.6 * rim})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x, y, 8, 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      // suck phase — black hole core
+      ctx.globalCompositeOperation = "source-over";
+      const coreR = 18;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, coreR * 2.5);
+      g.addColorStop(0, "rgba(0, 0, 0, 1)");
+      g.addColorStop(0.55, "rgba(10, 0, 10, 0.7)");
+      g.addColorStop(1, "rgba(10, 0, 10, 0)");
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x, y, coreR * 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      // accretion ring
+      ctx.globalCompositeOperation = "lighter";
+      const rim = 0.7 + 0.3 * Math.sin(now / 60);
+      ctx.strokeStyle = `rgba(255, 120, 220, ${0.55 * rim})`;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+      ctx.arc(x, y, coreR + 4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(120, 200, 255, ${0.35 * rim})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x, y, coreR + 10, 0, Math.PI * 2);
       ctx.stroke();
     }
     ctx.restore();
+  }
+
+  if (enemies.length) {
+    const byId = new Map<number, Circle>();
+    for (const c of circles) byId.set(c.id, c);
+    const attachCounts = attachedCountMap(enemies);
 
     // unattached scouts — sharp trail + 4-point star
     ctx.save();

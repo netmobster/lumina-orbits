@@ -6,11 +6,11 @@ import { BackgroundAura } from "./BackgroundAura";
 import { LoadingOrb } from "./LoadingOrb";
 import { StatsHUD } from "./StatsHUD";
 import {
-  findCircleAt, seedCircles, spawnFromEdge, splitCircle, step, mergeCircles,
+  findCircleAt, seedCircles, spawnFromEdge, splitCircle, step, mergeCircles, ejectFragments,
   triggerSupernova, spawnComet, spawnAsteroidBurst,
 } from "@/lib/orbis/sim";
 import { render } from "@/lib/orbis/render";
-import { DEFAULT_CONFIG, PRESETS, type Circle, type Preset, type SimConfig } from "@/lib/orbis/types";
+import { DEFAULT_CONFIG, PRESETS, type Circle, type Preset, type Pulse, type SimConfig } from "@/lib/orbis/types";
 import {
   DEFAULT_ENEMY_CONFIG,
   spawnEnemyWave,
@@ -20,6 +20,7 @@ import {
   type Enemy,
   type EnemyConfig,
 } from "@/lib/orbis/enemies";
+import { SCENARIOS, type Scenario } from "@/lib/orbis/scenarios";
 
 export function OrbisCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -38,7 +39,7 @@ export function OrbisCanvas() {
   const wavesFiredRef = useRef(0);
   const startingMassRef = useRef(0);
   const infectionPulseAccRef = useRef({ t: 0 });
-  const pulsesRef = useRef<{ x: number; y: number; bornAt: number }[]>([]);
+  const pulsesRef = useRef<Pulse[]>([]);
   const gameOverRef = useRef(false);
   const simTimeRef = useRef(0);
   // chaos agent effect timers (sim-time deadlines)
@@ -46,6 +47,23 @@ export function OrbisCanvas() {
   const inversionUntilRef = useRef(0);
   const blackHoleUntilRef = useRef(0);
   const blackHolePosRef = useRef<{ x: number; y: number } | null>(null);
+  const shatterUntilRef = useRef(0);
+  const coalesceUntilRef = useRef(0);
+  // singularity state machine
+  const singularityRef = useRef<{
+    x: number;
+    y: number;
+    absorbed: number;
+    color?: { core: string; shadow: string };
+    phase: "charge" | "suck";
+    chargeUntil: number;
+    suckUntil: number;
+  } | null>(null);
+  // scenario script runner
+  const activeScenarioRef = useRef<Scenario | null>(null);
+  const scenarioStartSimTimeRef = useRef(0);
+  const scenarioFiredRef = useRef<Set<number>>(new Set());
+  const handleChaosRef = useRef<((id: string) => void) | null>(null);
 
   const [configState, setConfigState] = useState<SimConfig>({ ...DEFAULT_CONFIG, ...PRESETS.orbit });
   const [enemyConfigState, setEnemyConfigState] = useState<EnemyConfig>({ ...DEFAULT_ENEMY_CONFIG });
@@ -62,6 +80,7 @@ export function OrbisCanvas() {
   const [totalMass, setTotalMass] = useState(0);
   const [fastForwarding, setFastForwarding] = useState(false);
   const [ffProgress, setFfProgress] = useState(0);
+  const [activeScenarioId, setActiveScenarioId] = useState<string | null>(null);
   const [, force] = useState(0);
 
   // setup
@@ -124,22 +143,79 @@ export function OrbisCanvas() {
 
       if (dt > 0 && !gameOverRef.current) {
         simTimeRef.current += dt;
+        // scenario script — fire any step whose `at` has been crossed
+        const sc = activeScenarioRef.current;
+        if (sc?.script) {
+          const elapsedScenario = simTimeRef.current - scenarioStartSimTimeRef.current;
+          for (let i = 0; i < sc.script.length; i++) {
+            const stp = sc.script[i];
+            if (elapsedScenario >= stp.at && !scenarioFiredRef.current.has(i)) {
+              scenarioFiredRef.current.add(i);
+              handleChaosRef.current?.(stp.agent);
+            }
+          }
+        }
         // resolve chaos-agent modifiers for this frame
         const t = simTimeRef.current;
         const gravityMul = t < gravityPulseUntilRef.current ? 5 : 1;
         const gravitySign = t < inversionUntilRef.current ? -1 : 1;
-        const extraAttractor =
-          t < blackHoleUntilRef.current && blackHolePosRef.current
-            ? { x: blackHolePosRef.current.x, y: blackHolePosRef.current.y, mass: 800 }
-            : null;
+        // singularity suck-phase attractor takes precedence over the black-hole agent
+        const sing = singularityRef.current;
+        let extraAttractor: { x: number; y: number; mass: number } | null = null;
+        if (sing && sing.phase === "suck" && t < sing.suckUntil) {
+          extraAttractor = { x: sing.x, y: sing.y, mass: Math.max(300, sing.absorbed * 1.5) };
+        } else if (t < blackHoleUntilRef.current && blackHolePosRef.current) {
+          extraAttractor = { x: blackHolePosRef.current.x, y: blackHolePosRef.current.y, mass: 800 };
+        }
         circlesRef.current = step(
           circlesRef.current,
           configRef.current,
           dt,
           sizeRef.current.w,
           sizeRef.current.h,
-          { gravityMultiplier: gravityMul, gravitySign, extraAttractor },
+          {
+            gravityMultiplier: gravityMul,
+            gravitySign,
+            extraAttractor,
+            shatterActive: t < shatterUntilRef.current,
+            coalesceActive: t < coalesceUntilRef.current,
+            pulsesOut: pulsesRef.current,
+          },
         );
+
+        // singularity progression
+        if (sing) {
+          if (sing.phase === "charge" && t >= sing.chargeUntil) {
+            sing.phase = "suck";
+            sing.suckUntil = t + 2.5;
+          }
+          if (sing.phase === "suck") {
+            const sx = sing.x, sy = sing.y;
+            const kept: Circle[] = [];
+            for (const c of circlesRef.current) {
+              const d = Math.hypot(c.x - sx, c.y - sy);
+              if (d < 30) {
+                sing.absorbed += c.mass;
+              } else {
+                kept.push(c);
+              }
+            }
+            if (kept.length !== circlesRef.current.length) circlesRef.current = kept;
+            if (t >= sing.suckUntil) {
+              const totalOut = sing.absorbed * 0.9;
+              const n = Math.max(8, Math.min(24, Math.round(sing.absorbed / 8)));
+              const frags = ejectFragments(sing.x, sing.y, totalOut, n, sing.color);
+              circlesRef.current = circlesRef.current.concat(frags);
+              pulsesRef.current.push({
+                x: sing.x, y: sing.y, bornAt: now, kind: "singularity-burst",
+              });
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("orbis:sfx:merge"));
+              }
+              singularityRef.current = null;
+            }
+          }
+        }
 
         // enemy waves
         const ecfg = enemyConfigRef.current;
@@ -194,12 +270,27 @@ export function OrbisCanvas() {
           trailCanvas: trailCanvasRef.current,
           enemies: enemiesRef.current,
           pulses: pulsesRef.current,
+          singularity: singularityRef.current
+            ? {
+                x: singularityRef.current.x,
+                y: singularityRef.current.y,
+                phase: singularityRef.current.phase,
+                progress:
+                  singularityRef.current.phase === "charge"
+                    ? Math.min(1, 1 - (singularityRef.current.chargeUntil - simTimeRef.current) / 1.5)
+                    : 1,
+              }
+            : null,
         },
         configRef.current.trailOpacity,
         configRef.current.glowSoftness,
         configRef.current.tailFadeRate,
         configRef.current.trailLength,
       );
+
+      if (pulsesRef.current.length > 0) {
+        pulsesRef.current = pulsesRef.current.filter((p) => now - p.bornAt < 1600);
+      }
 
       // fps update ~4Hz
       fpsAcc += realDt; fpsFrames++; fpsTimer += realDt;
@@ -314,6 +405,11 @@ export function OrbisCanvas() {
     inversionUntilRef.current = 0;
     blackHoleUntilRef.current = 0;
     blackHolePosRef.current = null;
+    shatterUntilRef.current = 0;
+    coalesceUntilRef.current = 0;
+    singularityRef.current = null;
+    scenarioStartSimTimeRef.current = 0;
+    scenarioFiredRef.current = new Set();
     const tctx = trailCtxRef.current;
     if (tctx) tctx.clearRect(0, 0, sizeRef.current.w, sizeRef.current.h);
   };
@@ -440,7 +536,59 @@ export function OrbisCanvas() {
       case "inversion":
         inversionUntilRef.current = t + 2;
         break;
+      case "shatter":
+        shatterUntilRef.current = t + 4;
+        break;
+      case "coalesce":
+        coalesceUntilRef.current = t + 6;
+        break;
+      case "singularity": {
+        if (singularityRef.current) break; // already in progress
+        let big: Circle | null = null;
+        for (const c of circlesRef.current) {
+          if (c.infected) continue;
+          if (!big || c.mass > big.mass) big = c;
+        }
+        if (!big || big.mass < 60) break;
+        // remove it and seed the singularity
+        singularityRef.current = {
+          x: big.x,
+          y: big.y,
+          absorbed: big.mass,
+          color: big.color,
+          phase: "charge",
+          chargeUntil: t + 1.5,
+          suckUntil: t + 1.5 + 2.5,
+        };
+        circlesRef.current = circlesRef.current.filter((c) => c.id !== big!.id);
+        pulsesRef.current.push({
+          x: big.x, y: big.y, bornAt: performance.now(), kind: "singularity-charge",
+        });
+        break;
+      }
     }
+  };
+  // expose for the scenario script runner (avoids referencing before declaration)
+  handleChaosRef.current = handleChaos;
+
+  const handleScenario = (id: string | null) => {
+    if (id == null) {
+      activeScenarioRef.current = null;
+      scenarioFiredRef.current = new Set();
+      setActiveScenarioId(null);
+      return;
+    }
+    const sc = SCENARIOS.find((s) => s.id === id);
+    if (!sc) return;
+    // apply patches
+    configRef.current = { ...configRef.current, ...sc.sim };
+    setConfigState((s) => ({ ...s, ...sc.sim }));
+    enemyConfigRef.current = { ...enemyConfigRef.current, ...sc.enemies };
+    setEnemyConfigState((s) => ({ ...s, ...sc.enemies }));
+    activeScenarioRef.current = sc;
+    scenarioStartSimTimeRef.current = simTimeRef.current;
+    scenarioFiredRef.current = new Set();
+    setActiveScenarioId(id);
   };
 
   return (
@@ -468,6 +616,9 @@ export function OrbisCanvas() {
         onEnemyChange={handleEnemyChange}
         onFastForward={handleFastForward}
         onChaos={handleChaos}
+        scenarios={SCENARIOS}
+        activeScenarioId={activeScenarioId}
+        onScenario={handleScenario}
       />
       <HelpOverlay open={helpOpen} onClose={() => setHelpOpen(false)} />
       {fastForwarding && (

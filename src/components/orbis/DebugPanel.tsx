@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import {
   ChevronDown, ChevronUp, RotateCcw, Pause, Play, Clock, Orbit, Mountain,
-  Sparkles, Radiation, Star, FastForward, Zap, CircleDot, Wind, Flame, Repeat, Bomb,
+  Sparkles, Radiation, Star, FastForward, Zap, CircleDot, Wind, Flame, Repeat, Bomb, Magnet, Atom,
 } from "lucide-react";
 import type { Preset, SimConfig } from "@/lib/orbis/types";
 import type { EnemyConfig } from "@/lib/orbis/enemies";
+import type { Scenario } from "@/lib/orbis/scenarios";
 
 type Props = {
   config: SimConfig;
@@ -23,6 +24,9 @@ type Props = {
   onEnemyChange: (patch: Partial<EnemyConfig>) => void;
   onFastForward: () => void;
   onChaos: (id: string) => void;
+  scenarios: Scenario[];
+  activeScenarioId: string | null;
+  onScenario: (id: string | null) => void;
 };
 
 export function DebugPanel({
@@ -31,6 +35,7 @@ export function DebugPanel({
   showTrails, onToggleTrails,
   enemyConfig, onEnemyChange,
   onFastForward, onChaos,
+  scenarios, activeScenarioId, onScenario,
 }: Props) {
   const [collapsed, setCollapsed] = useState(false);
   type Tab = "time" | "planets" | "bg" | "visuals" | "xl" | "radio";
@@ -115,6 +120,39 @@ export function DebugPanel({
 
       {!collapsed && (
         <div className="space-y-4 px-4 pb-4">
+          {/* Scenarios */}
+          <div className="space-y-1.5">
+            <span className="text-[11px] uppercase tracking-[0.18em]" style={{ color: "var(--orbis-text-muted)" }}>Scenarios</span>
+            <div className="flex flex-wrap gap-1.5">
+              {scenarios.map((s) => {
+                const active = activeScenarioId === s.id;
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => onScenario(active ? null : s.id)}
+                    title={s.blurb}
+                    className="rounded-xl border px-2.5 py-1 text-[11px] transition-colors hover:bg-white/5"
+                    style={{
+                      borderColor: active ? "var(--orbis-accent)" : "var(--orbis-hairline)",
+                      color: active ? "var(--orbis-accent)" : "var(--orbis-text)",
+                    }}
+                  >
+                    {s.name}
+                  </button>
+                );
+              })}
+              {activeScenarioId && (
+                <button
+                  onClick={() => onScenario(null)}
+                  className="rounded-xl border px-2.5 py-1 text-[11px] transition-colors hover:bg-white/5"
+                  style={{ borderColor: "var(--orbis-hairline)", color: "var(--orbis-text-muted)" }}
+                >
+                  Exit
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Tabs */}
           <div className="grid grid-cols-6 gap-1.5">
               {tabs.map(({ id, label, Icon, badge }, i) => {
@@ -278,6 +316,9 @@ export function DebugPanel({
                 { id: "storm", label: "Asteroids", Icon: Wind },
                 { id: "comet", label: "Comet", Icon: Flame },
                 { id: "inversion", label: "Inversion", Icon: Repeat },
+                { id: "shatter", label: "Shatter", Icon: Sparkles },
+                { id: "singularity", label: "Singularity", Icon: Atom },
+                { id: "coalesce", label: "Coalesce", Icon: Magnet },
               ] as const).map(({ id, label, Icon }) => {
                 const until = cooldowns[id] ?? 0;
                 const remaining = Math.max(0, until - Date.now());
