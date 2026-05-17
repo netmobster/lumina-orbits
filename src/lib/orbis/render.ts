@@ -176,6 +176,72 @@ export function render(
     }
   }
 
+  // ---- archetype overlays: elder halo, anchor motes, binary bond ----
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const drawnBinaries = new Set<string>();
+  for (const c of circles) {
+    if (c.infected) continue;
+    const r = Math.max(0, c.radius);
+    // elder: soft wide outer ring + slow breath
+    if (c.archetype === "elder") {
+      const breath = 0.85 + 0.15 * Math.sin(now / 1400 + c.id);
+      const ringR = r * 1.6 * breath;
+      const grad = ctx.createRadialGradient(c.x, c.y, r * 0.9, c.x, c.y, ringR);
+      grad.addColorStop(0, `rgba(${c.rgbPrefix},0)`);
+      grad.addColorStop(0.6, `rgba(${c.rgbPrefix},0.12)`);
+      grad.addColorStop(1, `rgba(${c.rgbPrefix},0)`);
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(c.x, c.y, ringR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // anchor: 4 drifting motes accreting inward
+    if (c.archetype === "anchor") {
+      const orbitR = r * 1.9;
+      for (let i = 0; i < 4; i++) {
+        const ang = (i / 4) * Math.PI * 2 + now / 1800 + c.id * 0.3;
+        // inward drift via sin pulse so they breathe in/out
+        const wobble = 0.6 + 0.4 * Math.sin(now / 1200 + i + c.id);
+        const mx = c.x + Math.cos(ang) * orbitR * wobble;
+        const my = c.y + Math.sin(ang) * orbitR * wobble;
+        ctx.fillStyle = `rgba(${c.rgbPrefix},0.35)`;
+        ctx.beginPath();
+        ctx.arc(mx, my, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // binary: shared halo ellipse around centroid (draw once per pair)
+    if (c.binaryWith != null) {
+      const partner = byId.get(c.binaryWith);
+      if (partner && !partner.infected) {
+        const key = c.id < partner.id ? `${c.id}-${partner.id}` : `${partner.id}-${c.id}`;
+        if (!drawnBinaries.has(key)) {
+          drawnBinaries.add(key);
+          const cx = (c.x + partner.x) / 2;
+          const cy = (c.y + partner.y) / 2;
+          const dx = partner.x - c.x;
+          const dy = partner.y - c.y;
+          const span = Math.hypot(dx, dy);
+          const ang = Math.atan2(dy, dx);
+          const a2 = span / 2 + Math.max(c.radius, partner.radius) * 1.2;
+          const b2 = (c.radius + partner.radius) * 0.9;
+          const breath = 0.9 + 0.1 * Math.sin(now / 900);
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.rotate(ang);
+          ctx.strokeStyle = `rgba(${c.rgbPrefix},${0.18 * breath})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, a2, b2, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    }
+  }
+  ctx.restore();
+
   // ---- enemies ----
   const enemies = opts.enemies ?? [];
   const pulses = opts.pulses ?? [];
