@@ -9,8 +9,23 @@ const DEFAULT_SLIDER = 0.30;
 const DUCK_RATIO = 0.8;
 /** Per-type min interval between triggers (ms). Prevents machine-gunning. */
 const MIN_INTERVAL_MS = 60;
+const MAX_OFFSET = 60;       // never seek past 60s into the file
+const FADE_IN_MS = 2000;
+const FADE_OUT_MS = 500;
+const MIN_PLAY_MS = 3000;
+const MAX_PLAY_MS = 5000;
+const ASSUMED_DURATION = 30; // fallback if metadata not loaded yet
 
-type Voice = { audio: HTMLAudioElement; startedAt: number };
+type Voice = {
+  audio: HTMLAudioElement;
+  startedAt: number;
+  /** Envelope timestamps in performance.now() space. 0 = idle. */
+  fadeInUntil: number;
+  sustainUntil: number;
+  fadeOutUntil: number;
+  /** 1.0 or DUCK_RATIO */
+  duckMul: number;
+};
 type Pool = { voices: [Voice, Voice]; lastTrigger: number };
 
 type SfxKey = "merge" | "collision" | "attach";
@@ -26,14 +41,34 @@ function makePool(src: string): Pool {
     const a = new Audio(src);
     a.preload = "auto";
     a.volume = 0;
-    return { audio: a, startedAt: 0 };
+    return {
+      audio: a,
+      startedAt: 0,
+      fadeInUntil: 0,
+      sustainUntil: 0,
+      fadeOutUntil: 0,
+      duckMul: 1,
+    };
   };
   return { voices: [mk(), mk()], lastTrigger: 0 };
 }
 
 function isPlaying(v: Voice) {
-  const a = v.audio;
-  return !a.paused && !a.ended && a.currentTime > 0;
+  return v.fadeOutUntil > 0 && performance.now() < v.fadeOutUntil;
+}
+
+/** Envelope value in [0, 1] for a voice at time `now`. */
+function envelopeAt(v: Voice, now: number): number {
+  if (v.fadeOutUntil === 0) return 0;
+  if (now >= v.fadeOutUntil) return 0;
+  if (now < v.fadeInUntil) {
+    const t = (now - v.startedAt) / FADE_IN_MS;
+    return Math.max(0, Math.min(1, t));
+  }
+  if (now < v.sustainUntil) return 1;
+  // in fade-out
+  const t = (v.fadeOutUntil - now) / FADE_OUT_MS;
+  return Math.max(0, Math.min(1, t));
 }
 
 export function SfxControl() {
@@ -65,23 +100,34 @@ export function SfxControl() {
     };
   }, []);
 
-  // live-update currently-playing voices when slider/mute changes
+  // rAF loop: write audio.volume = target * envelope * duckMul for every voice.
   useEffect(() => {
-    const pools = poolsRef.current;
-    if (!pools) return;
-    const target = muted ? 0 : sliderVolume * MAX_VOLUME;
-    (Object.keys(pools) as SfxKey[]).forEach((k) => {
-      const voices = pools[k].voices;
-      const playing = voices.filter(isPlaying).sort((x, y) => x.startedAt - y.startedAt);
-      if (playing.length === 0) return;
-      if (playing.length === 1) {
-        playing[0].audio.volume = target;
-      } else {
-        playing[0].audio.volume = target * DUCK_RATIO; // older = ducked
-        playing[1].audio.volume = target;
+    let raf = 0;
+    const tick = () => {
+      const pools = poolsRef.current;
+      if (pools) {
+        const now = performance.now();
+        const target = mutedRef.current ? 0 : volRef.current * MAX_VOLUME;
+        (Object.keys(pools) as SfxKey[]).forEach((k) => {
+          for (const v of pools[k].voices) {
+            if (v.fadeOutUntil === 0) continue;
+            const env = envelopeAt(v, now);
+            v.audio.volume = Math.max(0, Math.min(1, target * env * v.duckMul));
+            if (now >= v.fadeOutUntil) {
+              v.audio.pause();
+              v.fadeOutUntil = 0;
+              v.fadeInUntil = 0;
+              v.sustainUntil = 0;
+              v.duckMul = 1;
+            }
+          }
+        });
       }
-    });
-  }, [muted, sliderVolume]);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   // event listeners
   useEffect(() => {
@@ -93,7 +139,6 @@ export function SfxControl() {
       if (now - pool.lastTrigger < MIN_INTERVAL_MS) return;
       pool.lastTrigger = now;
 
-      const target = mutedRef.current ? 0 : volRef.current * MAX_VOLUME;
       const [v0, v1] = pool.voices;
       const p0 = isPlaying(v0);
       const p1 = isPlaying(v1);
@@ -117,13 +162,25 @@ export function SfxControl() {
         other = newer;
       }
 
-      if (other) {
-        other.audio.volume = target * DUCK_RATIO;
-      }
+      if (other) other.duckMul = DUCK_RATIO;
+
+      // pick a fresh random slice
+      const playMs = MIN_PLAY_MS + Math.random() * (MAX_PLAY_MS - MIN_PLAY_MS);
+      const playLen = playMs / 1000;
+      const dur = Number.isFinite(toPlay.audio.duration) && toPlay.audio.duration > 0
+        ? toPlay.audio.duration
+        : ASSUMED_DURATION;
+      const maxOffset = Math.max(0, Math.min(MAX_OFFSET, dur - playLen));
+      const offset = Math.random() * maxOffset;
+
       toPlay.audio.pause();
-      toPlay.audio.currentTime = 0;
-      toPlay.audio.volume = target;
+      try { toPlay.audio.currentTime = offset; } catch { /* seek may fail before metadata */ }
+      toPlay.audio.volume = 0;
       toPlay.startedAt = now;
+      toPlay.fadeInUntil = now + FADE_IN_MS;
+      toPlay.sustainUntil = now + (playMs - FADE_OUT_MS);
+      toPlay.fadeOutUntil = now + playMs;
+      toPlay.duckMul = 1;
       toPlay.audio.play().catch(() => {});
     };
 
