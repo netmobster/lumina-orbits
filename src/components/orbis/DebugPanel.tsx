@@ -54,6 +54,15 @@ export function DebugPanel({
   const startCooldown = (id: string, ms = 5000) => {
     setCooldowns((c) => ({ ...c, [id]: Date.now() + ms }));
   };
+  // listen for auto-chaos firings dispatched by the canvas
+  useEffect(() => {
+    const onAuto = (e: Event) => {
+      const id = (e as CustomEvent<{ id: string }>).detail?.id;
+      if (id) startCooldown(id);
+    };
+    window.addEventListener("orbis:chaos-cooldown", onAuto);
+    return () => window.removeEventListener("orbis:chaos-cooldown", onAuto);
+  }, []);
   const tabs: { id: Tab; label: string; Icon: typeof Clock; badge?: boolean }[] = [
     { id: "time", label: "Time", Icon: Clock },
     { id: "planets", label: "Planets", Icon: Orbit },
