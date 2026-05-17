@@ -6,7 +6,9 @@ import attachUrl from "@/assets/sfx-attach.mp3";
 
 const MAX_VOLUME = 0.20;
 const DEFAULT_SLIDER = 0.30;
-const DUCK_RATIO = 0.8;
+const POOL_SIZE = 5;
+const DUCK_STEP = 0.9;
+const MIN_DUCK = 0.4;
 /** Per-type min interval between triggers (ms). Prevents machine-gunning. */
 const MIN_INTERVAL_MS = 60;
 const MAX_OFFSET = 60;       // never seek past 60s into the file
@@ -26,7 +28,7 @@ type Voice = {
   /** 1.0 or DUCK_RATIO */
   duckMul: number;
 };
-type Pool = { voices: [Voice, Voice]; lastTrigger: number };
+type Pool = { voices: Voice[]; lastTrigger: number };
 
 type SfxKey = "merge" | "collision" | "attach";
 
@@ -50,7 +52,9 @@ function makePool(src: string): Pool {
       duckMul: 1,
     };
   };
-  return { voices: [mk(), mk()], lastTrigger: 0 };
+  const voices: Voice[] = [];
+  for (let i = 0; i < POOL_SIZE; i++) voices.push(mk());
+  return { voices, lastTrigger: 0 };
 }
 
 function isPlaying(v: Voice) {
@@ -139,30 +143,21 @@ export function SfxControl() {
       if (now - pool.lastTrigger < MIN_INTERVAL_MS) return;
       pool.lastTrigger = now;
 
-      const [v0, v1] = pool.voices;
-      const p0 = isPlaying(v0);
-      const p1 = isPlaying(v1);
-
-      let toPlay: Voice;
-      let other: Voice | null = null;
-
-      if (!p0 && !p1) {
-        toPlay = v0;
-      } else if (p0 && !p1) {
-        other = v0;
-        toPlay = v1;
-      } else if (!p0 && p1) {
-        other = v1;
-        toPlay = v0;
-      } else {
-        // both playing — restart the older one, keep the newer one as the ducked "other"
-        const older = v0.startedAt <= v1.startedAt ? v0 : v1;
-        const newer = older === v0 ? v1 : v0;
-        toPlay = older;
-        other = newer;
+      // pick a free voice, or steal the oldest
+      let toPlay: Voice | null = null;
+      for (const v of pool.voices) {
+        if (!isPlaying(v)) { toPlay = v; break; }
       }
-
-      if (other) other.duckMul = DUCK_RATIO;
+      if (!toPlay) {
+        toPlay = pool.voices[0];
+        for (const v of pool.voices) if (v.startedAt < toPlay.startedAt) toPlay = v;
+      }
+      // duck every other still-playing voice by 10% (floored)
+      for (const v of pool.voices) {
+        if (v !== toPlay && isPlaying(v)) {
+          v.duckMul = Math.max(MIN_DUCK, v.duckMul * DUCK_STEP);
+        }
+      }
 
       // pick a fresh random slice
       const playMs = MIN_PLAY_MS + Math.random() * (MAX_PLAY_MS - MIN_PLAY_MS);
