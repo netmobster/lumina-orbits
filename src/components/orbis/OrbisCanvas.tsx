@@ -542,6 +542,7 @@ export function OrbisCanvas() {
     const DT = 0.5;
     const TARGET_SIM_SECONDS = 600; // ~10 sim-minutes, same as before
     const FRAME_BUDGET_MS = 8;
+    const startSim = simTimeRef.current;
     let advanced = 0;
     let spawnAcc = spawnAccRef.current;
     const tick = () => {
@@ -560,7 +561,7 @@ export function OrbisCanvas() {
         advanced += DT;
       }
       circlesRef.current = cur;
-      simTimeRef.current += (advanced - (simTimeRef.current === 0 ? 0 : 0));
+      simTimeRef.current = startSim + advanced;
       // progress + HUD
       setFfProgress(Math.min(1, advanced / TARGET_SIM_SECONDS));
       let mSum = 0;
@@ -575,14 +576,7 @@ export function OrbisCanvas() {
         setFastForwarding(false);
       }
     };
-    // accumulate sim time once at end-of-FF (track via 'advanced')
-    const startSim = simTimeRef.current;
-    const origTick = tick;
-    const wrappedTick = () => {
-      origTick();
-      simTimeRef.current = startSim + advanced;
-    };
-    requestAnimationFrame(wrappedTick);
+    requestAnimationFrame(tick);
   };
 
   const handleChaos = (id: string) => {
