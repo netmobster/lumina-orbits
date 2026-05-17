@@ -1,79 +1,58 @@
-## Performance audit + fast-forward freeze fix
+## Goal
 
-### What I found
+Currently the population cap correctly limits *object count* (220), but the merge ladder produces a flat mass distribution — peers fuse with peers, smallest pair up with smallest. Result: ~200 mid-mass bodies forever, no giants.
 
-**1. Fast-forward freeze (root cause)**
-`handleFastForward` runs `10 chunks × 60 iterations × DT=1.0` of `step()` synchronously, yielding only between chunks with `setTimeout(0)`. `step()` is **O(n²)** in both the force pass and the collision pass. At n=200, one chunk = 60 × ~40 000 pair checks + allocations = **1–3 s of blocked main thread**, ten times in a row. Browsers register that as a freeze.
+Target end-state after a long fast-forward: **a handful of giants (mass 200–1000+) surrounded by scattered small debris.** Bigger gravity wells → more chaos, exactly the theme you want.
 
-Compounding it: `DT=1.0` is way above the live loop's ~0.05; shatter (3 frags per crash) and edge spawns keep adding bodies during FF with no cap.
+Auto-split logic stays untouched. Single-body explicit chaos events (supernova, etc.) stay untouched.
 
-**2. No population cap anywhere.** Long sessions naturally bloom to 200–400 bodies.
+## Changes (all in `src/lib/orbis/sim.ts`)
 
-**3. `step()` is O(n²) — twice.** Force pass + collision pass both iterate every pair. At n=300 that's 90 000 pair checks per frame.
+### 1. New helper: `accretionMerge(circles)`
 
-**4. `render()` allocates 1–2 gradients per body per frame.** `createRadialGradient` isn't free; at n=300 that's 600 per frame.
+Largest-first accretion pass:
 
-**5. Console runtime error: `IndexSizeError: radius (-40.4) is negative` in `ctx.arc`.** Defensive clamps needed.
+- Sort bodies **largest → smallest**.
+- For each giant (in order), find its **N nearest small neighbors** (where "small" = mass ≤ giant.mass × 0.4) within a generous reach (e.g. `giant.radius * 6`).
+- Eat them all in one go via successive `mergeCircles` calls.
+- Skip `infected` bodies (preserves enemy logic).
+- Pushes a `"shatter"` pulse at the giant's position for visual feedback.
 
-**6. Auto-chaos doesn't care about population.** Storm/Comet/Supernova/Shatter all add bodies; can fire when already crowded.
+This is the new floor of the ladder — guaranteed population drop, *and* guaranteed mass concentration.
 
----
+### 2. Rewire `enforcePopulationCap`'s ladder
 
-### Plan
+New order (target still 50% of cap, max 4 passes, same bail-out guard):
 
-#### A. Fix fast-forward (highest priority)
-Rewrite `handleFastForward` to be **wall-clock-budgeted**:
-- `DT=0.5` (matches existing helper, half the per-iter explosion vs DT=1.0).
-- Total sim-time advanced unchanged (~600 sim-seconds).
-- Inner loop: run iters until `performance.now() - chunkStart > 8 ms`, then yield via `requestAnimationFrame`.
-- Apply the population cap (B) inside the FF loop so n can't balloon mid-FF.
-- Progress UI based on sim-time elapsed / target.
+```text
+pass 1: accretionMerge          ← giants eat small neighbors (NEW, primary)
+pass 2: fusionCascade strict    ← peer fusion for similar-sized clusters
+pass 3: fusionCascade loose     ← wider peer fusion
+pass 4: forcedNearestMerge      ← last-resort floor (kept as safety net)
+```
 
-#### B. Population cap via **forced Fusion Cascade** (thematic)
-Add `MAX_BODIES = 220`. Whenever `circles.length > MAX_BODIES`, run a cap-enforcer that **collapses bodies into bigger ones** instead of deleting them — preserves total mass and rewards the player with more high-gravity actors causing more chaos (gravity is `G·m₁·m₂/d²`, so bigger = disproportionately more interesting).
+Accretion runs first so growth concentrates into existing large bodies before peer-fusion creates new mid-tier bodies.
 
-The enforcer ladder, applied in order until `circles.length ≤ MAX_BODIES * 0.5`:
+### 3. Reduce merge mass-loss for accretion
 
-1. **Run `fusionCascade`** with default params (±20% mass, ≤1 diameter). Usually clears the easy clusters.
-2. **Run `fusionCascade` with widened params** — `massRatio ≥ 0.5`, reach `≤ 2 × diameter`. Catches looser groupings.
-3. **Forced nearest-neighbor merge** — sort bodies by mass ascending; for each, find the nearest other body and merge regardless of size/distance. Guarantees `n` drops by ~half per pass.
-4. Loop the ladder up to 4 times; abort if `n` ever stops decreasing (safety).
+`mergeCircles` currently bakes in `* 0.98` (2% loss). Over hundreds of merges that's the difference between mass-300 giants and mass-50 mids.
 
-This is exported from `sim.ts` as `enforcePopulationCap(circles, cap)` and called:
-- After every live-loop `step()`.
-- After every FF iteration.
-- Inside the live loop *before* auto-chaos fires, so a spawn-heavy agent (storm/comet) doesn't push over the cap.
+Option: add an optional `efficiency` parameter to `mergeCircles` (default 0.98 to preserve current behaviour everywhere else), and call it with `1.0` (lossless) from `accretionMerge`. Peer fusion + organic collisions keep the 2% loss so total system mass still drifts down slowly — only directed accretion is lossless.
 
-Refactor `fusionCascade` signature to accept `{ massRatio?: number; reachMultiplier?: number }` so the same code powers the chaos agent (current defaults) and the cap enforcer (widened).
+### 4. Tune `forcedNearestMerge` to bias accretion
 
-Also: in `pickAutoChaos()`, when `n > MAX_BODIES * 0.85`, bias the weighted pool toward `fusion` / `singularity` / `blackhole` and zero out `storm` / `comet` / `shatter`. The game self-regulates instead of fighting the cap.
+Currently sorts smallest-first and pairs each with its nearest *anything*, so small+small is common. Change: when picking the partner for a small body, **prefer the nearest body with mass ≥ 2× the small body's mass** (falls back to plain nearest if none in range). This means even the safety-net floor feeds giants instead of producing new mids.
 
-#### C. Spatial grid for `step()` pair passes
-Add a uniform-grid broad-phase in `sim.ts`:
-- Cell size = `2 × maxRadiusInFrame`.
-- Bucket bodies once per `step()`. Force + collision passes check only the body's cell + 8 neighbors.
-- Cuts pair checks by 70–90% at n=200. Gravity is effectively short-range here (`1/d²` + `maxForce` clamp), so the cutoff has no visible effect.
+## Technical notes
 
-#### D. Render micro-optimizations
-- Wrap every `ctx.arc(x, y, R, ...)` with `Math.max(0, R)` — silences the negative-radius error.
-- Widen the flat-fill threshold from `r < 3` to `r < 6` for glow + body passes. Saves one `createRadialGradient` per small body.
+- No changes to `OrbisCanvas.tsx`, render, or fast-forward loop. The cap-enforce call site stays per-iteration as previously discussed.
+- No changes to auto-split (kept as-is per your answer).
+- No changes to `splitRate` or `MAX_BODIES`.
+- `infected` bodies remain untouched by all cap passes (enemy logic preserved).
+- Pulse output continues to flow through `pulsesOut` so the existing visual feedback fires on cap events.
 
-#### E. Fix negative-radius error at the source
-In `OrbisCanvas`, clamp the `singularity.progress` value to `[0, 1]` (currently only `Math.min(1, …)`). Belt-and-suspenders with the render clamps in D.
+## Expected behaviour after change
 
----
-
-### Expected impact
-- FF: from "freezes 10+ s" → smooth progress, never blocks > ~10 ms per frame.
-- Live loop at n=200: ~3–5× faster `step()`, frame time well under 8 ms.
-- Population bounded at 220; when hit, the game **collapses bodies into bigger, more gravitationally interesting ones** instead of deleting mass. Feels like an emergent generation jump rather than a cleanup.
-- Negative-radius console spam gone.
-
-### Files touched
-- `src/components/orbis/OrbisCanvas.tsx` — rewrite `handleFastForward`, call `enforcePopulationCap` after `step()` in live + FF loops, clamp singularity progress, bias `pickAutoChaos` when crowded.
-- `src/lib/orbis/sim.ts` — add uniform-grid broad-phase used by `step()`; refactor `fusionCascade` to accept tuning params; add `enforcePopulationCap(circles, cap)` exporter.
-- `src/lib/orbis/render.ts` — clamp arc radii; widen flat-fill threshold.
-
-### Non-goals
-- No Web Worker — serializing circle arrays each frame would cost more than it saves at n=220.
-- No SFX changes, no UI changes, no chaos-agent behavior changes beyond the auto-pool bias.
+- Short FF: subtle, similar to today.
+- Long FF: population repeatedly approaches 220, accretion fires, count drops to ~110 but **the dropped mass concentrates into the existing largest bodies** instead of vanishing into mid-tier merges. Over multiple cap cycles, the top 3–8 bodies grow steadily into mass 200–1000+ giants while smaller debris keeps spawning and getting eaten.
+- Auto-split still produces fresh small bodies when population dips below 80, maintaining baseline chaos and feedstock for giants.
