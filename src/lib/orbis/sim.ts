@@ -414,6 +414,10 @@ export function mergeCircles(a: Circle, b: Circle, efficiency = 0.98): Circle {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("orbis:sfx:merge"));
   }
+  const now = typeof performance !== "undefined" ? performance.now() : 0;
+  // lineage: inherit elder lineage (oldest birth) + deepest merge count + 1
+  const bornAt = Math.min(a.bornAt ?? now, b.bornAt ?? now);
+  const mergeCount = Math.max(a.mergeCount ?? 0, b.mergeCount ?? 0) + 1;
   return {
     id: nextId(),
     x, y, vx, vy,
@@ -426,6 +430,9 @@ export function mergeCircles(a: Circle, b: Circle, efficiency = 0.98): Circle {
     radius: radiusOf(newMass),
     rgbPrefix: rgbPrefixOf(color.core),
     originalMass: newMass,
+    bornAt,
+    mergeCount,
+    lastMergeAt: now,
   };
 }
 
