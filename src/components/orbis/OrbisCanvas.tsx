@@ -8,6 +8,7 @@ import { StatsHUD } from "./StatsHUD";
 import {
   findCircleAt, seedCircles, spawnFromEdge, splitCircle, step, mergeCircles, ejectFragments,
   triggerSupernova, spawnComet, spawnAsteroidBurst, fusionCascade,
+  enforcePopulationCap,
 } from "@/lib/orbis/sim";
 import { render } from "@/lib/orbis/render";
 import { DEFAULT_CONFIG, PRESETS, type Circle, type Preset, type Pulse, type SimConfig } from "@/lib/orbis/types";
