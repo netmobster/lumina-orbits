@@ -613,6 +613,7 @@ function accretionMerge(circles: Circle[], pulsesOut?: Pulse[]): Circle[] {
   for (const giantOrig of sorted) {
     if (consumed.has(giantOrig.id)) continue;
     if (giantOrig.infected) continue;
+    if (giantOrig.binaryWith != null) continue;
     let giant = giantOrig;
     const smallCap = giant.mass * 0.4;
     const reach = giant.radius * 6;
@@ -623,6 +624,7 @@ function accretionMerge(circles: Circle[], pulsesOut?: Pulse[]): Circle[] {
       if (b.id === giantOrig.id) continue;
       if (consumed.has(b.id)) continue;
       if (b.infected) continue;
+      if (b.binaryWith != null) continue;
       if (b.mass > smallCap) continue;
       const dx = b.x - giant.x, dy = b.y - giant.y;
       const d2 = dx * dx + dy * dy;
