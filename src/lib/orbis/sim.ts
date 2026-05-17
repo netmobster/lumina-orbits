@@ -21,6 +21,7 @@ const nextId = () => _id++;
 
 export function makeCircle(opts: Partial<Circle> & { mass: number; x: number; y: number }): Circle {
   const color = opts.color ?? randomPaletteColor();
+  const now = typeof performance !== "undefined" ? performance.now() : 0;
   return {
     id: opts.id ?? nextId(),
     x: opts.x,
@@ -36,6 +37,9 @@ export function makeCircle(opts: Partial<Circle> & { mass: number; x: number; y:
     radius: radiusOf(opts.mass),
     rgbPrefix: rgbPrefixOf(color.core),
     originalMass: opts.mass,
+    bornAt: opts.bornAt ?? now,
+    mergeCount: opts.mergeCount ?? 0,
+    lastMergeAt: opts.lastMergeAt ?? now,
   };
 }
 
@@ -410,6 +414,10 @@ export function mergeCircles(a: Circle, b: Circle, efficiency = 0.98): Circle {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("orbis:sfx:merge"));
   }
+  const now = typeof performance !== "undefined" ? performance.now() : 0;
+  // lineage: inherit elder lineage (oldest birth) + deepest merge count + 1
+  const bornAt = Math.min(a.bornAt ?? now, b.bornAt ?? now);
+  const mergeCount = Math.max(a.mergeCount ?? 0, b.mergeCount ?? 0) + 1;
   return {
     id: nextId(),
     x, y, vx, vy,
@@ -422,6 +430,9 @@ export function mergeCircles(a: Circle, b: Circle, efficiency = 0.98): Circle {
     radius: radiusOf(newMass),
     rgbPrefix: rgbPrefixOf(color.core),
     originalMass: newMass,
+    bornAt,
+    mergeCount,
+    lastMergeAt: now,
   };
 }
 
@@ -520,6 +531,7 @@ export function fusionCascade(
   for (const a of sorted) {
     if (consumed.has(a.id)) continue;
     if (a.infected) continue;
+    if (a.binaryWith != null) continue;
     const reach = a.radius * reachMul;
     const reach2 = reach * reach;
     const group: Circle[] = [];
@@ -527,6 +539,7 @@ export function fusionCascade(
       if (b.id === a.id) continue;
       if (consumed.has(b.id)) continue;
       if (b.infected) continue;
+      if (b.binaryWith != null) continue;
       const ratio = Math.min(a.mass, b.mass) / Math.max(a.mass, b.mass);
       if (ratio < minRatio) continue;
       const dx = b.x - a.x, dy = b.y - a.y;
@@ -562,6 +575,7 @@ function forcedNearestMerge(circles: Circle[]): Circle[] {
   for (const a of sorted) {
     if (consumed.has(a.id)) continue;
     if (a.infected) continue;
+    if (a.binaryWith != null) continue;
     let bestBig: Circle | null = null;
     let bestBigD2 = Infinity;
     let bestAny: Circle | null = null;
@@ -571,6 +585,7 @@ function forcedNearestMerge(circles: Circle[]): Circle[] {
       if (b.id === a.id) continue;
       if (consumed.has(b.id)) continue;
       if (b.infected) continue;
+      if (b.binaryWith != null) continue;
       const dx = b.x - a.x, dy = b.y - a.y;
       const d2 = dx * dx + dy * dy;
       if (d2 < bestAnyD2) { bestAnyD2 = d2; bestAny = b; }
@@ -600,6 +615,7 @@ function accretionMerge(circles: Circle[], pulsesOut?: Pulse[]): Circle[] {
   for (const giantOrig of sorted) {
     if (consumed.has(giantOrig.id)) continue;
     if (giantOrig.infected) continue;
+    if (giantOrig.binaryWith != null) continue;
     let giant = giantOrig;
     const smallCap = giant.mass * 0.4;
     const reach = giant.radius * 6;
@@ -610,6 +626,7 @@ function accretionMerge(circles: Circle[], pulsesOut?: Pulse[]): Circle[] {
       if (b.id === giantOrig.id) continue;
       if (consumed.has(b.id)) continue;
       if (b.infected) continue;
+      if (b.binaryWith != null) continue;
       if (b.mass > smallCap) continue;
       const dx = b.x - giant.x, dy = b.y - giant.y;
       const d2 = dx * dx + dy * dy;

@@ -22,6 +22,7 @@ import {
   type EnemyConfig,
 } from "@/lib/orbis/enemies";
 import { SCENARIOS, type Scenario } from "@/lib/orbis/scenarios";
+import { classifyArchetypes, createBinaryTracker } from "@/lib/orbis/roles";
 
 export function OrbisCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -67,6 +68,9 @@ export function OrbisCanvas() {
   const handleChaosRef = useRef<((id: string) => void) | null>(null);
   // random event generator — always on, fires a weighted-random agent every N sim seconds
   const nextAutoChaosAtRef = useRef(0);
+  const binaryTrackerRef = useRef(createBinaryTracker());
+  const archetypeAccRef = useRef(0);
+  const archetypeLastRef = useRef(0);
   const AUTO_CHAOS_POOL: { id: string; weight: number }[] = [
     { id: "storm", weight: 3 },
     { id: "comet", weight: 3 },
@@ -248,6 +252,22 @@ export function OrbisCanvas() {
             MAX_BODIES,
             pulsesRef.current,
           );
+        }
+
+        // archetype classifier — every ~30 frames (cheap)
+        archetypeAccRef.current++;
+        if (archetypeAccRef.current >= 30) {
+          const nowMs = performance.now();
+          const elapsedSec = archetypeLastRef.current
+            ? (nowMs - archetypeLastRef.current) / 1000
+            : 0.5;
+          archetypeLastRef.current = nowMs;
+          archetypeAccRef.current = 0;
+          classifyArchetypes(circlesRef.current, elapsedSec);
+          const { formed } = binaryTrackerRef.current.step(circlesRef.current, nowMs);
+          for (const f of formed) {
+            pulsesRef.current.push({ x: f.x, y: f.y, bornAt: now, kind: "shatter" });
+          }
         }
 
         // singularity progression
