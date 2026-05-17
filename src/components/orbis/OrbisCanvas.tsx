@@ -531,7 +531,59 @@ export function OrbisCanvas() {
       case "inversion":
         inversionUntilRef.current = t + 2;
         break;
+      case "shatter":
+        shatterUntilRef.current = t + 4;
+        break;
+      case "coalesce":
+        coalesceUntilRef.current = t + 6;
+        break;
+      case "singularity": {
+        if (singularityRef.current) break; // already in progress
+        let big: Circle | null = null;
+        for (const c of circlesRef.current) {
+          if (c.infected) continue;
+          if (!big || c.mass > big.mass) big = c;
+        }
+        if (!big || big.mass < 60) break;
+        // remove it and seed the singularity
+        singularityRef.current = {
+          x: big.x,
+          y: big.y,
+          absorbed: big.mass,
+          color: big.color,
+          phase: "charge",
+          chargeUntil: t + 1.5,
+          suckUntil: t + 1.5 + 2.5,
+        };
+        circlesRef.current = circlesRef.current.filter((c) => c.id !== big!.id);
+        pulsesRef.current.push({
+          x: big.x, y: big.y, bornAt: performance.now(), kind: "singularity-charge",
+        });
+        break;
+      }
     }
+  };
+  // expose for the scenario script runner (avoids referencing before declaration)
+  handleChaosRef.current = handleChaos;
+
+  const handleScenario = (id: string | null) => {
+    if (id == null) {
+      activeScenarioRef.current = null;
+      scenarioFiredRef.current = new Set();
+      setActiveScenarioId(null);
+      return;
+    }
+    const sc = SCENARIOS.find((s) => s.id === id);
+    if (!sc) return;
+    // apply patches
+    configRef.current = { ...configRef.current, ...sc.sim };
+    setConfigState((s) => ({ ...s, ...sc.sim }));
+    enemyConfigRef.current = { ...enemyConfigRef.current, ...sc.enemies };
+    setEnemyConfigState((s) => ({ ...s, ...sc.enemies }));
+    activeScenarioRef.current = sc;
+    scenarioStartSimTimeRef.current = simTimeRef.current;
+    scenarioFiredRef.current = new Set();
+    setActiveScenarioId(id);
   };
 
   return (
