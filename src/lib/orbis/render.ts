@@ -192,7 +192,7 @@ export function render(
         const age = ageMs / 1000;
         if (age > 1.2) continue;
         const t = age / 1.2;
-        const radius = 20 + t * 180;
+        const radius = Math.max(0, 20 + t * 180);
         ctx.strokeStyle = `rgba(220, 60, 60, ${(1 - t) * 0.5})`;
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -201,7 +201,7 @@ export function render(
       } else if (kind === "shatter") {
         if (ageMs > 600) continue;
         const t = ageMs / 600;
-        const radius = 10 + t * 110;
+        const radius = Math.max(0, 10 + t * 110);
         // bright white core ring
         ctx.strokeStyle = `rgba(255, 240, 220, ${(1 - t) * 0.9})`;
         ctx.lineWidth = 3;
@@ -212,13 +212,13 @@ export function render(
         ctx.strokeStyle = `rgba(255, 140, 60, ${(1 - t) * 0.5})`;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, radius * 1.35, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, Math.max(0, radius * 1.35), 0, Math.PI * 2);
         ctx.stroke();
       } else if (kind === "singularity-charge") {
         if (ageMs > 1500) continue;
         const t = ageMs / 1500;
         // shrinking inward ring
-        const radius = 90 * (1 - t);
+        const radius = Math.max(0, 90 * (1 - t));
         ctx.strokeStyle = `rgba(220, 74, 74, ${0.4 + 0.4 * t})`;
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -227,7 +227,7 @@ export function render(
       } else if (kind === "singularity-burst") {
         if (ageMs > 900) continue;
         const t = ageMs / 900;
-        const radius = 15 + t * 320;
+        const radius = Math.max(0, 15 + t * 320);
         ctx.strokeStyle = `rgba(240, 250, 255, ${(1 - t) * 0.95})`;
         ctx.lineWidth = 4;
         ctx.beginPath();
@@ -236,7 +236,7 @@ export function render(
         ctx.strokeStyle = `rgba(120, 210, 255, ${(1 - t) * 0.55})`;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(p.x, p.y, radius * 1.4, 0, Math.PI * 2);
+        ctx.arc(p.x, p.y, Math.max(0, radius * 1.4), 0, Math.PI * 2);
         ctx.stroke();
       }
     }
@@ -246,10 +246,11 @@ export function render(
   // ---- singularity body (charging dot or active black void) ----
   if (singularity) {
     const { x, y, phase, progress } = singularity;
+    const prog = Math.max(0, Math.min(1, progress));
     ctx.save();
     if (phase === "charge") {
       // dark inward-collapsing dot
-      const r = 20 + progress * 6;
+      const r = Math.max(0, 20 + prog * 6);
       const g = ctx.createRadialGradient(x, y, 0, x, y, r);
       g.addColorStop(0, "rgba(20, 0, 0, 0.95)");
       g.addColorStop(1, "rgba(20, 0, 0, 0)");
