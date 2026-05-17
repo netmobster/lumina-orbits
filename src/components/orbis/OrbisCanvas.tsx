@@ -171,7 +171,11 @@ export function OrbisCanvas() {
           nextAutoChaosAtRef.current = simTimeRef.current + configRef.current.autoChaosInterval;
         }
         if (simTimeRef.current >= nextAutoChaosAtRef.current) {
-          handleChaosRef.current?.(pickAutoChaos());
+          const picked = pickAutoChaos();
+          handleChaosRef.current?.(picked);
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("orbis:chaos-cooldown", { detail: { id: picked } }));
+          }
           const interval = configRef.current.autoChaosInterval;
           // ±20% jitter so it doesn't feel metronomic
           const jitter = (Math.random() * 0.4 - 0.2) * interval;
