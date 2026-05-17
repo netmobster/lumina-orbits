@@ -254,6 +254,22 @@ export function OrbisCanvas() {
           );
         }
 
+        // archetype classifier — every ~30 frames (cheap)
+        archetypeAccRef.current++;
+        if (archetypeAccRef.current >= 30) {
+          const nowMs = performance.now();
+          const elapsedSec = archetypeLastRef.current
+            ? (nowMs - archetypeLastRef.current) / 1000
+            : 0.5;
+          archetypeLastRef.current = nowMs;
+          archetypeAccRef.current = 0;
+          classifyArchetypes(circlesRef.current, elapsedSec);
+          const { formed } = binaryTrackerRef.current.step(circlesRef.current, nowMs);
+          for (const f of formed) {
+            pulsesRef.current.push({ x: f.x, y: f.y, bornAt: now, kind: "shatter" });
+          }
+        }
+
         // singularity progression
         if (sing) {
           if (sing.phase === "charge" && t >= sing.chargeUntil) {
