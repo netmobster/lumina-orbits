@@ -344,7 +344,7 @@ export function OrbisCanvas() {
                 phase: singularityRef.current.phase,
                 progress:
                   singularityRef.current.phase === "charge"
-                    ? Math.min(1, 1 - (singularityRef.current.chargeUntil - simTimeRef.current) / 1.5)
+                    ? Math.max(0, Math.min(1, 1 - (singularityRef.current.chargeUntil - simTimeRef.current) / 1.5))
                     : 1,
               }
             : null,
