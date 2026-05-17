@@ -64,6 +64,28 @@ export function OrbisCanvas() {
   const scenarioStartSimTimeRef = useRef(0);
   const scenarioFiredRef = useRef<Set<number>>(new Set());
   const handleChaosRef = useRef<((id: string) => void) | null>(null);
+  // random event generator — always on, fires a weighted-random agent every N sim seconds
+  const nextAutoChaosAtRef = useRef(0);
+  const AUTO_CHAOS_POOL: { id: string; weight: number }[] = [
+    { id: "storm", weight: 3 },
+    { id: "comet", weight: 3 },
+    { id: "pulse", weight: 3 },
+    { id: "shatter", weight: 3 },
+    { id: "coalesce", weight: 3 },
+    { id: "supernova", weight: 1 },
+    { id: "blackhole", weight: 1 },
+    { id: "inversion", weight: 1 },
+    { id: "singularity", weight: 1 },
+  ];
+  const pickAutoChaos = () => {
+    const total = AUTO_CHAOS_POOL.reduce((s, p) => s + p.weight, 0);
+    let r = Math.random() * total;
+    for (const p of AUTO_CHAOS_POOL) {
+      r -= p.weight;
+      if (r <= 0) return p.id;
+    }
+    return AUTO_CHAOS_POOL[0].id;
+  };
 
   const [configState, setConfigState] = useState<SimConfig>({ ...DEFAULT_CONFIG, ...PRESETS.orbit });
   const [enemyConfigState, setEnemyConfigState] = useState<EnemyConfig>({ ...DEFAULT_ENEMY_CONFIG });
@@ -130,7 +152,8 @@ export function OrbisCanvas() {
     const loop = (now: number) => {
       const realDt = Math.min((now - last) / 1000, 1 / 30);
       last = now;
-      const dt = realDt * speedRef.current;
+      // base timeline runs 20% faster than wall-clock
+      const dt = realDt * speedRef.current * 1.2;
 
       // spawn — ticks on SIM time so faster speeds = more spawns
       spawnAccRef.current += dt;
@@ -143,6 +166,26 @@ export function OrbisCanvas() {
 
       if (dt > 0 && !gameOverRef.current) {
         simTimeRef.current += dt;
+        // random event generator — fire a weighted-random agent on sim-time cadence
+        if (nextAutoChaosAtRef.current === 0) {
+          nextAutoChaosAtRef.current = simTimeRef.current + configRef.current.autoChaosInterval;
+        }
+        if (simTimeRef.current >= nextAutoChaosAtRef.current) {
+          handleChaosRef.current?.(pickAutoChaos());
+          const interval = configRef.current.autoChaosInterval;
+          // ±20% jitter so it doesn't feel metronomic
+          const jitter = (Math.random() * 0.4 - 0.2) * interval;
+          nextAutoChaosAtRef.current = simTimeRef.current + interval + jitter;
+        }
+        // mass safety valve — runaway megabodies auto-collapse into a singularity
+        if (!singularityRef.current) {
+          for (const c of circlesRef.current) {
+            if (!c.infected && c.mass >= 250) {
+              handleChaosRef.current?.("singularity");
+              break;
+            }
+          }
+        }
         // scenario script — fire any step whose `at` has been crossed
         const sc = activeScenarioRef.current;
         if (sc?.script) {
